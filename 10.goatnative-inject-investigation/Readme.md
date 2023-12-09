@@ -40,8 +40,33 @@ MegaDummy ..> ISuperDummy : USE
 ### A.2. Example with several levels of dependencies and templates.
 
 ```mermaid
+classDiagram
 
-    // TODO:
+class IReadImage~T~{
+    <<interface>>
+}
+
+class IReadJPGImage{
+    <<interface>>
+}
+
+class IReadTIFFImage{
+    <<interface>>
+}
+
+class IServiceImageReader{
+    <<interface>>
+}
+
+IReadJPGImage --|> IReadImage : EXTENDS
+IReadTIFFImage --|> IReadImage : EXTENDS
+
+ReadJPGImage --|> IReadImage~IReadJPGImage~ : EXTENDS
+ReadTIFFImage --|> IReadImage~IReadJPGImage~ : EXTENDS
+
+ServiceImageReader --|> IServiceImageReader : EXTENDS
+ServiceImageReader ..> IReadImage~IReadJPGImage~ : USE
+ServiceImageReader ..> IReadImage~IReadJPGImage~ : USE
 ```
 
 ## B. Useful links to design graphs based on Mermaid syntax and IoC concepts.

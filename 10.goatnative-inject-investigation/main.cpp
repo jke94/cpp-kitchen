@@ -117,9 +117,14 @@ enum IMAGE_TYPE
     TIFF = 1
 };
 
-class IReadJPGImage 
-{
+// Interfaces
+class IReadJPGImage;
+class IReadTIFFImage;
 
+class IServiceImageReader
+{
+    public:
+        virtual std::string read_image(IMAGE_TYPE image_type, std::string& file_name) = 0;
 };
 
 class ReadJPGImage : public IReadImage<IReadJPGImage>
@@ -131,11 +136,6 @@ class ReadJPGImage : public IReadImage<IReadJPGImage>
         }
 };
 
-class IReadTIFFImage 
-{
-
-};
-
 class ReadTIFFImage : public IReadImage<IReadTIFFImage>
 {
     public:
@@ -143,12 +143,6 @@ class ReadTIFFImage : public IReadImage<IReadTIFFImage>
         {
             return "Reading a TIFF image...";
         }
-};
-
-class IServiceImageReader
-{
-    public:
-        virtual std::string read_image(IMAGE_TYPE image_type, std::string& file_name) = 0;
 };
 
 class ServiceImageReader : public IServiceImageReader
