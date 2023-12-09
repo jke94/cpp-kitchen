@@ -12,6 +12,10 @@ class IDummy{
     <<interface>>
 }
 
+class IBasicDummy{
+    <<interface>>
+}
+
 class ISuperDummy {
     <<interface>>
 }
@@ -21,10 +25,12 @@ class IMegaDummy{
 }
 
 MegaDummy --|> IMegaDummy : EXTENDS
-
-MegaDummy ..> ISuperDummy : USE
 SuperDummy --|> ISuperDummy : EXTENDS
+BasicDummy --|> IBasicDummy : EXTENDS
+Dummy --|> IDummy : EXTENDS
 
 SuperDummy ..> IDummy : USE
-Dummy --|> IDummy : EXTENDS
+SuperDummy ..> IBasicDummy : USE
+MegaDummy ..> ISuperDummy : USE
+
 ```
