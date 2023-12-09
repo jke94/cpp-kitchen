@@ -44,8 +44,9 @@ MegaDummy ..> ISuperDummy : USE
     // TODO:
 ```
 
-## B. Useful links to design graphs based on Mermaid syntax.
+## B. Useful links to design graphs based on Mermaid syntax and IoC concepts.
 
 - [Mermaid - Class diagrams](https://mermaid.js.org/syntax/classDiagram.html)
 - [Mermaid - Online designer](https://mermaid.live)
 - [UML Class Diagram Relationships Explained with Examples](https://creately.com/guides/class-diagram-relationships/)
+- [Dependency Inversion Implies Interfaces Are Owned by High-level Modules](https://mikhail.io/2016/05/dependency-inversion-implies-interfaces-are-owned-by-high-level-modules/)
