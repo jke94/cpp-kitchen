@@ -13,173 +13,6 @@
 
 #include "Injector.h"
 
-using std::cout;
-using std::endl;
-using std::shared_ptr;
-using std::string;
-
-using goatnative::Injector;
-
-class IFile
-{
-	virtual void open() = 0;
-};
-
-class Win32File : public IFile
-{
-	void open() override
-	{
-		cout << "opening!!!" << endl;
-	}
-};
-
-class IConcurrency
-{
-public:
-    virtual void createMutex() = 0;
-    virtual ~IConcurrency() = default;
-};
-
-class IFileSystem
-{
-public:
-    virtual void writeFile(const string& fileName) = 0;
-    virtual ~IFileSystem() = default;
-};
-
-class INotifier
-{
-public:
-    virtual void notify(const string& message, const string& target) = 0;
-    virtual ~INotifier() = default;
-};
-
-class Concurrency : public IConcurrency
-{
-public:
-    void createMutex() override
-    {
-        cout << "Creating mutex" << endl;
-    }
-};
-
-class FileSystem : public IFileSystem
-{
-public:
-    void writeFile(const string& fileName) override
-    {
-        cout << "Writing" << fileName << endl;
-    }
-};
-
-class Notifier : public INotifier
-{
-public:
-    void notify(const string& message, const string& target) override
-    {
-        cout << "Notifying " << target << " with message: " << message << endl;
-    }
-    
-};
-
-class ServicesProvider
-{
-public:
-    ServicesProvider(shared_ptr<IConcurrency> concurency,
-                     shared_ptr<IFileSystem> fileSystem,
-                     shared_ptr<INotifier> notifier)
-                : _concurency(concurency), _fileSystem(fileSystem), _notifier(notifier)
-    {
-        
-    }
-    
-    shared_ptr<IConcurrency> concurrency()
-    {
-        return _concurency;
-    }
-    
-    shared_ptr<IFileSystem> filesystem()
-    {
-        return _fileSystem;
-    }
-    
-    shared_ptr<INotifier> notifier()
-    {
-        return _notifier;
-    }
-    
-private:
-    shared_ptr<IConcurrency> _concurency;
-    shared_ptr<IFileSystem> _fileSystem;
-    shared_ptr<INotifier> _notifier;
-};
-
-////////////////////////////////////////////
-
-void testSingleton()
-{
-    Injector injector;
-    
-    injector.registerSingleton<Notifier>();
-    injector.registerInterface<INotifier, Notifier>();
-    auto notifier = injector.getInstance<INotifier>();
-    auto notifier2 = injector.getInstance<INotifier>();
-    
-    assert(notifier == notifier2);
-    
-}
-
-void testBuildWholeGraph()
-{
-    
-    Injector injector;
-    
-    injector.registerSingleton<Notifier>();
-	injector.registerInterface<INotifier, Notifier>();
-    
-	injector.registerSingleton<Concurrency>();
-	injector.registerInterface<IConcurrency, Concurrency>();
-    
-	injector.registerSingleton<FileSystem>();
-	injector.registerInterface<IFileSystem, FileSystem>();
-    
-	injector.registerSingleton<ServicesProvider, IConcurrency, IFileSystem, INotifier>();
-    
-    auto services = injector.getInstance<ServicesProvider>();
-
-    assert(services->notifier());
-    assert(services->filesystem());
-    assert(services->concurrency());
-    
-    assert(services->notifier().get() == injector.getInstance<INotifier>().get());
-    assert(services->concurrency().get() == injector.getInstance<IConcurrency>().get());
-    assert(services->filesystem().get() == injector.getInstance<IFileSystem>().get());
-}
-
-
-void testInterfaceBasedFactory()
-{
-
-	Injector injector;
-
-	injector.registerClass<Notifier>();
-	injector.registerInterface<INotifier, Notifier>();
-
-	auto notifier1 = injector.getInstance<INotifier>();
-	auto notifier2 = injector.getInstance<INotifier>();
-
-	assert(notifier1.get() != notifier2.get());
-}
-
-
-void testFactory()
-{
-    Injector injector;
-    
-    injector.registerClass<Notifier>();
-    assert(injector.getInstance<Notifier>().get() != injector.getInstance<Notifier>().get());
-}
-
 class IDummy
 {
     public:
@@ -204,15 +37,15 @@ class ISuperDummy
 class SuperDummy : public ISuperDummy
 {
     private:
-        shared_ptr<IDummy> dummy_;
+        std::shared_ptr<IDummy> dummy_;
 
     public:
-        SuperDummy(shared_ptr<IDummy> dummy) : dummy_ (dummy){}
+        SuperDummy(std::shared_ptr<IDummy> dummy) : dummy_ (dummy){}
         SuperDummy();
 
         int get_number() override
         {
-            return 1994;
+            return 1995;
         }
 };
 
@@ -220,26 +53,47 @@ class IMegaDummy
 {
     public:
         virtual int get_number() = 0;
+        virtual std::shared_ptr<ISuperDummy> get_super_dummy() = 0;
 };
 
 class MegaDummy : public IMegaDummy
 {
     private:
-        shared_ptr<ISuperDummy> super_dummy_;
+        std::shared_ptr<ISuperDummy> super_dummy_;
 
     public:
-        MegaDummy(shared_ptr<ISuperDummy> super_dummy) : super_dummy_ (super_dummy){}
+        MegaDummy(std::shared_ptr<ISuperDummy> super_dummy) : super_dummy_ (super_dummy){}
         MegaDummy();
 
         int get_number() override
         {
-            return 1994;
+            return 1996;
         }
+
+        std::shared_ptr<ISuperDummy> get_super_dummy() override
+        {
+            return super_dummy_;
+        }
+
 };
 
-void test_with_several_dependencies()
+std::string get_spreader_bar(char character, int length)
 {
-    Injector injector;
+    std::string value = "";
+
+    for(int i=0; i<length; i++)
+    {
+        value = value + character;
+    }
+
+    return value;
+}
+
+void example_with_several_dependencies_between_classes()
+{
+    goatnative::Injector injector;
+
+    // Building dependencies.
 
     injector.registerClass<Dummy>();
     injector.registerInterface<IDummy,Dummy>();
@@ -250,39 +104,41 @@ void test_with_several_dependencies()
     injector.registerClass<MegaDummy,ISuperDummy>();
     injector.registerInterface<IMegaDummy,MegaDummy>();
 
-    auto dummy = injector.getInstance<IDummy>();
-    auto super_dummy = injector.getInstance<ISuperDummy>();
-    auto mega_dummy = injector.getInstance<IMegaDummy>();
 
-    cout << "Memory: " << dummy.get() << ", value: " << dummy.get()->get_number() << endl;
-    cout << "Memory: " << super_dummy.get() << ", value: " << super_dummy->get_number() << endl;
-    cout << "Memory: " << mega_dummy.get() << ", value: " << mega_dummy.get()->get_number() << endl;
+    // Example A: Get object and access to de function exported through the interface.
 
-    std::vector<shared_ptr<IMegaDummy>> mega_dummy_vector;
+    std::shared_ptr<IDummy> dummy = injector.getInstance<IDummy>();
+    std::shared_ptr<ISuperDummy> super_dummy = injector.getInstance<ISuperDummy>();
+    std::shared_ptr<IMegaDummy> mega_dummy = injector.getInstance<IMegaDummy>();
 
-    mega_dummy_vector.push_back(injector.getInstance<IMegaDummy>());
-    mega_dummy_vector.push_back(injector.getInstance<IMegaDummy>());
-    mega_dummy_vector.push_back(injector.getInstance<IMegaDummy>());
-    mega_dummy_vector.push_back(injector.getInstance<IMegaDummy>());
+    std::cout << "Memory: " << dummy.get() << ", value: " << dummy.get()->get_number() << std::endl;
+    std::cout << "Memory: " << super_dummy.get() << ", value: " << super_dummy->get_number() << std::endl;
+    std::cout << "Memory: " << mega_dummy.get() << ", value: " << mega_dummy.get()->get_number() << std::endl;
 
-    std::cout << "-----------------------------------------" <<std::endl;
+    std::cout << get_spreader_bar('-', 85) <<std::endl;
 
-    for(auto item : mega_dummy_vector)
+    // Example B: Get object and access to de function exported through the interface.
+
+    std::vector<std::shared_ptr<IMegaDummy>> mega_dummy_vector;
+
+    int n_items = 9;
+
+    for(int i=0; i<n_items; i++)
     {
-        std::cout << "Memory: " << item << std::endl;
+        mega_dummy_vector.push_back(injector.getInstance<IMegaDummy>());
     }
 
+    for (int i=0; i<mega_dummy_vector.size(); i++)
+    {
+        std::cout << "Item " << i << ": Memory: " << mega_dummy_vector[i] << 
+            ", accessing to internal dependency (ISuperDummy): " << 
+            mega_dummy_vector[i].get()->get_super_dummy().get()->get_number() << std::endl;
+    } 
 }
 
 int main(int argc, const char * argv[]) {
-    // TODO - move tests to Google Test
-    testSingleton();
-    testBuildWholeGraph();
-    testFactory();
-	testInterfaceBasedFactory();
 
-    test_with_several_dependencies();
+    example_with_several_dependencies_between_classes();
 
     return 0;
 }
-
