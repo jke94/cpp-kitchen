@@ -1,11 +1,18 @@
 # Investigation about: Autodesk/goatnative-inject repository
 
+Investigation about a found link for (IoC - inversion of control) and build a injector container. It´s looks works fine!
+
 - [Autodesk/goatnative-inject](https://github.com/Autodesk/goatnative-inject)
 
+## A. How to build example, building a console executable.
 
-## A. Examples
+```
+g++ -std=c++20 main.cpp -o main
+```
 
-### A.1. Example with several levels of dependencies.
+## B. Examples
+
+### B.1. Example with several levels of dependencies.
 
 ```mermaid
 classDiagram
@@ -37,7 +44,7 @@ MegaDummy ..> ISuperDummy : USE
 
 ```
 
-### A.2. Example with several levels of dependencies and templates.
+### B.2. Example with several levels of dependencies and templates.
 
 ```mermaid
 classDiagram
@@ -69,7 +76,7 @@ ServiceImageReader ..> IReadImage~IReadJPGImage~ : USE
 ServiceImageReader ..> IReadImage~IReadJPGImage~ : USE
 ```
 
-## B. Useful links to design graphs based on Mermaid syntax and IoC concepts.
+## C. Useful links to design graphs based on Mermaid syntax and IoC concepts.
 
 - [Mermaid - Class diagrams](https://mermaid.js.org/syntax/classDiagram.html)
 - [Mermaid - Online designer](https://mermaid.live)
