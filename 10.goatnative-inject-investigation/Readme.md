@@ -3,7 +3,9 @@
 - [Autodesk/goatnative-inject](https://github.com/Autodesk/goatnative-inject)
 
 
-## Example
+## A. Examples
+
+### A.1. Example with several levels of dependencies.
 
 ```mermaid
 classDiagram
@@ -34,3 +36,16 @@ SuperDummy ..> IBasicDummy : USE
 MegaDummy ..> ISuperDummy : USE
 
 ```
+
+### A.2. Example with several levels of dependencies and templates.
+
+```mermaid
+
+    // TODO:
+```
+
+## B. Useful links to design graphs based on Mermaid syntax.
+
+- [Mermaid - Class diagrams](https://mermaid.js.org/syntax/classDiagram.html)
+- [Mermaid - Online designer](https://mermaid.live)
+- [UML Class Diagram Relationships Explained with Examples](https://creately.com/guides/class-diagram-relationships/)
