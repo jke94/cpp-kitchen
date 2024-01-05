@@ -22,7 +22,7 @@ classJ --|> classK : Inheritance
 
 ### A.1. Association
 
-Un objeto es consciente de otro. Contiene un puntero o referencia a otro objeto.
+- Un objeto es consciente de otro. Contiene un puntero o referencia a otro objeto (isntancia).
 
 - Code example:
 
@@ -32,17 +32,17 @@ class Engine
 
 };
 
-class Car 
+class Car
 {
-    private:
-        Engine* _engine;
     public:
-        Car(Engine* engine) : _engine (engine){}
+        void start_engine(Engine* engine){}
 };
 
 int main()
 {
-    Car car(new Engine());
+    Engine* engine = new Engine();
+    Car car;
+    car.start_engine(engine);
     
     return 0;
 }
@@ -91,3 +91,5 @@ Car --> Engine
 ## Useful links with information.
 
 - [creately: UML Class Diagram Relationships Explained with Examples](https://creately.com/guides/class-diagram-relationships/)
+
+- [blog.visual-paradigm: ¿Cuáles Son Los Seis Tipos De Relaciones En Los Diagramas De Clases UML?](https://blog.visual-paradigm.com/es/what-are-the-six-types-of-relationships-in-uml-class-diagrams/)

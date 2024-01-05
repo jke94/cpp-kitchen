@@ -3,17 +3,17 @@ class Engine
 
 };
 
-class Car 
+class Car
 {
-    private:
-        Engine* _engine;
     public:
-        Car(Engine* engine) : _engine (engine){}
+        void start_engine(Engine* engine){}
 };
 
 int main()
 {
-    Car car(new Engine());
+    Engine* engine = new Engine();
+    Car car;
+    car.start_engine(engine);
     
     return 0;
 }
