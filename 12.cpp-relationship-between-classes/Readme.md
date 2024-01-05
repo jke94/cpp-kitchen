@@ -58,18 +58,100 @@ Car --> Engine
 
 ### A.2. Composition
 
+// TODO: To add definition and explication.
+
 - Code example:
 
 ```
-// TODO
+class Engine
+{
+public:
+    void turn_on() 
+    {
+        // Logic to turn on engine.
+    }
+};
+
+class Car
+{
+    private:
+        Engine* _engine;
+    public:
+        Car(Engine* engine) : _engine(engine){}
+        void start_engine(){}
+};
+
+int main()
+{
+    Engine* engine = new Engine();
+    Car car(engine);
+    car.start_engine();
+    
+    return 0;
+}
+```
+
+- Diagram example:
+
+```mermaid
+classDiagram
+Engine --* Car 
+
 ```
 
 ### A.3. Aggregation
 
+// TODO: To add definition and explication.
+
 - Code example:
 
 ```
-// TODO
+#include <vector>
+
+class Engine
+{
+
+};
+
+class Car
+{
+    private:
+        Engine* _engine;
+
+    public:
+        Car(){}
+        ~Car(){ delete _engine; }
+        void add_engine(Engine* engine)
+        {
+            _engine = engine;
+        }
+};
+
+int main()
+{
+    Engine* renault_engine = new Engine();
+    Engine* mercedes_engine = new Engine();
+
+    Car mercedes;
+    mercedes.add_engine(renault_engine);
+
+    // more logic... and engine change!
+
+    mercedes.add_engine(mercedes_engine);
+
+    delete renault_engine;
+    delete mercedes_engine;
+    
+    return 0;
+}
+```
+
+- Diagram example:
+
+```mermaid
+classDiagram
+Engine --o Car 
+
 ```
 
 ### A.4. Dependency
