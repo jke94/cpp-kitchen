@@ -77,14 +77,23 @@ class Car
     private:
         Engine* _engine;
     public:
-        Car(Engine* engine) : _engine(engine){}
-        void start_engine(){}
+        Car()
+        {
+            _engine = new Engine();
+        }
+        ~Car()
+        {
+            delete _engine;
+        }
+        void start_engine()
+        {
+            _engine->turn_on();
+        }
 };
 
 int main()
 {
-    Engine* engine = new Engine();
-    Car car(engine);
+    Car car;
     car.start_engine();
     
     return 0;
