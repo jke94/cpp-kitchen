@@ -165,10 +165,48 @@ Engine --o Car
 
 ### A.4. Dependency
 
+- Una clase depende de otra. Un cambio en una, proboca un cambio en la otra.
+- Una dependencia es una relación "de uso", en el ejemplo, *Car* depende de *Fuel*. Si no hay fuel, no podrá inicar la marcha.
+
 - Code example:
 
 ```
-// TODO
+class Fuel
+{
+    private:
+};
+
+class Car
+{
+private:
+
+public:
+
+    Car(){}
+    void before_start(Fuel *fuel)
+    {
+        // Logic
+    }
+};
+
+int main()
+{
+    Car car;
+    Fuel* fuel = new Fuel();
+
+    car.before_start(fuel);
+
+    delete fuel;
+
+    return 0;
+}
+```
+- Diagram example:
+
+```mermaid
+classDiagram
+Car ..> Fuel
+
 ```
 
 ### A.5. Inheritance
