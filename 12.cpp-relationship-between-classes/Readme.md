@@ -217,7 +217,7 @@ Car ..> Fuel
 // TODO
 ```
 
-## Useful links with information.
+## B. Useful links with information.
 
 - [creately: UML Class Diagram Relationships Explained with Examples](https://creately.com/guides/class-diagram-relationships/)
 

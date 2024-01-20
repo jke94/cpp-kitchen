@@ -33,6 +33,10 @@
 
 # Binaries 
 main
+aggregation
+association
+composition
+dependency
 
 # Visual Studio Code
 .vscode
