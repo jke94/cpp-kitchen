@@ -265,6 +265,15 @@ int main()
 }
 ```
 
+- Diagram example:
+
+```mermaid
+classDiagram
+Taxi --|> Automobile
+TucTuc --|> Automobile
+
+```
+
 ## B. Useful links with information.
 
 - [creately: UML Class Diagram Relationships Explained with Examples](https://creately.com/guides/class-diagram-relationships/)
