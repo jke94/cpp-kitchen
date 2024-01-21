@@ -37,6 +37,7 @@ aggregation
 association
 composition
 dependency
+inheritance
 
 # Visual Studio Code
 .vscode
