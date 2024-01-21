@@ -58,7 +58,8 @@ Car --> Engine
 
 ### A.2. Composition
 
-// TODO: To add definition and explication.
+- Una clase forma parte de la otra.
+- No se pueden agregar partes después de su creación.
 
 - Code example:
 
@@ -110,7 +111,11 @@ Engine --* Car
 
 ### A.3. Aggregation
 
-// TODO: To add definition and explication.
+- Grado de dependencia bajo.
+- Una clase no forma parte de la otra, puede vivir independientemente.
+- Capacidad de agregar más elementos.
+- Puede ser no destruído cuando lo hace la clase contenedora.
+- 
 
 - Code example:
 
@@ -210,6 +215,8 @@ Car ..> Fuel
 ```
 
 ### A.5. Inheritance
+
+- También es conocida cómo generalización.
 
 - Code example:
 
