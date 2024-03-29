@@ -1,9 +1,10 @@
-#include <chrono>
-#include <iostream>
-#include <memory>
-#include <mutex>
+#ifndef PERSON_H
+#define PERSON_H
+
 #include <string>
 #include <thread>
+
+#include "IMonitorApi.h"
 #include "IPerson.h"
 
 #define PERSON_PPM_MIN  60
@@ -18,7 +19,7 @@ class Person : public IPerson
         int _ppm;
         std::thread _thread_life;
 
-        void (*_person_ppm_callback)(std::string, int);
+        PERSON_MONITOR_CALLBACK _person_ppm_callback = nullptr;
 
         void do_live();
 
@@ -30,3 +31,5 @@ class Person : public IPerson
         std::string get_name() override;
         int get_ppm() override;
 };
+
+#endif
