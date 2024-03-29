@@ -13,8 +13,6 @@ class Monitor : public IMonitor
         
         std::vector<std::shared_ptr<IPerson>> _monitor;
 
-        // std::string get_date_and_time();
-        // void show_ppm_person(std::string name, int ppm);
         PERSON_MONITOR_CALLBACK _person_ppm_callback = nullptr;
 
     public:
