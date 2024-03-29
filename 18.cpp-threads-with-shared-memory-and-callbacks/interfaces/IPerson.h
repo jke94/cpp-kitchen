@@ -1,3 +1,6 @@
+#ifndef IPERSON_H
+#define IPERSON_H
+
 #include <string>
 
 class IPerson
@@ -7,3 +10,5 @@ class IPerson
         virtual std::string get_name() = 0;
         virtual int get_ppm() = 0;
 };
+
+#endif

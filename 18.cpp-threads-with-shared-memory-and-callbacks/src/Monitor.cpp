@@ -6,35 +6,10 @@
 #include <string>
 #include <vector>
 
+#include "Monitor.h"
 #include "Person.h"
 
-std::mutex main_mutex;
-
-std::string get_date_and_time();
-void show_ppm_person(std::string name, int ppm); 
-
-int main()
-{
-    void (*person_ppm_callback)(std::string, int);
-    person_ppm_callback = &show_ppm_person;
-
-    std::vector<std::shared_ptr<IPerson>> persons = {
-        std::make_shared<Person>("Javi",    1000,   person_ppm_callback),
-        std::make_shared<Person>("Ale",     250,    person_ppm_callback),
-        std::make_shared<Person>("Milei",   500,    person_ppm_callback),
-    };
-
-    std::this_thread::sleep_for(std::chrono::seconds(8));    
-
-    return 0;
-}
-
-void show_ppm_person(std::string name, int ppm) 
-{
-    std::lock_guard<std::mutex> guard(main_mutex);
-
-    std::cout << "[" << get_date_and_time() <<"] Name: " << name << ", PPM: " << ppm << std::endl;
-}
+std::mutex monitor_mutex;
 
 std::string get_date_and_time()
 {
@@ -62,4 +37,27 @@ std::string get_date_and_time()
 #endif
 
     return nowSs.str();
+}
+
+void show_ppm_person(std::string name, int ppm)
+{
+    std::lock_guard<std::mutex> guard(monitor_mutex);
+
+    std::cout << "[" << get_date_and_time() <<"] Name: " << name << ", PPM: " << ppm << std::endl;
+}
+
+Monitor::Monitor()
+{
+    _monitor = std::vector<std::shared_ptr<IPerson>>();
+    _person_ppm_callback = &show_ppm_person;
+}
+
+Monitor::~Monitor()
+{
+
+}
+
+void Monitor::add_person(std::string name, int time_to_update)
+{
+    _monitor.push_back(std::make_shared<Person>(name, time_to_update, _person_ppm_callback));
 }
