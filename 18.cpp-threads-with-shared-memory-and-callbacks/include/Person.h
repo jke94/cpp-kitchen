@@ -4,7 +4,7 @@
 #include <string>
 #include <thread>
 
-#include "MonitorApi.h"
+#include "IMonitorApi.h"
 #include "IPerson.h"
 
 #define PERSON_PPM_MIN  60

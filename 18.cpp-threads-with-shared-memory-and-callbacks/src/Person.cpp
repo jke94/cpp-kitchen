@@ -30,7 +30,7 @@ Person::Person(
 
     if(_thread_life.joinable())
     {
-        std::cout << "Created thread: "<< _thread_life.get_id() << std::endl;
+        std::cout << "Created thread: "<< _thread_life.get_id() << " (" << _name << ")" << std::endl;
     } 
 };
 
@@ -38,14 +38,14 @@ Person::~Person()
 {
     if(_thread_life.joinable())
     {
-        std::cout << "Deatached thread: "<< _thread_life.get_id() << std::endl;
+        std::cout << "Deatached thread: "<< _thread_life.get_id() << " (" << _name << ")" << std::endl;
     }    
     
     _thread_life.detach();
 
     if(!_thread_life.joinable())
     {
-        std::cout << "Deatached thread successfully." << std::endl;
+        std::cout << "Deatached thread successfully." << " (" << _name << ")"<< std::endl;
     }
 };
 

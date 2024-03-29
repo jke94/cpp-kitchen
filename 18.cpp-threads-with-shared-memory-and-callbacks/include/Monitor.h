@@ -4,9 +4,8 @@
 #include <vector>
 #include <memory>
 
-#include "MonitorApi.h"
+#include "IMonitorApi.h"
 #include "IPerson.h"
-#include "IMonitor.h"
 
 class Monitor : public IMonitor
 {
