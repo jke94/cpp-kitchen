@@ -5,6 +5,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <algorithm> 
 
 #include "Monitor.h"
 #include "Person.h"
@@ -59,5 +60,21 @@ Monitor::~Monitor()
 
 void Monitor::add_person(std::string name, int time_to_update)
 {
+    std::lock_guard<std::mutex> guard(monitor_mutex);
     _monitor.push_back(std::make_shared<Person>(name, time_to_update, _person_ppm_callback));
+}
+
+void Monitor::remove_person(std::string name)
+{
+    std::lock_guard<std::mutex> guard(monitor_mutex);
+
+    auto item = find_if(_monitor.begin(), _monitor.end(), [&name](const std::shared_ptr<IPerson> person) 
+        {
+            return person->get_name() == name;
+        });
+
+    if(item->get())
+    {
+        _monitor.erase(item);
+    }
 }

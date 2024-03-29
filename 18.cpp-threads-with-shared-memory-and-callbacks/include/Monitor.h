@@ -21,6 +21,7 @@ class Monitor : public IMonitor
         Monitor();
         ~Monitor();
         void add_person(std::string name, int time_to_update) override;
+        void remove_person(std::string name) override;
 };
 
 #endif
