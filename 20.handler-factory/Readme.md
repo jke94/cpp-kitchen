@@ -15,3 +15,13 @@ cmake --build ./build/
 ```
 ./build/XMLHandlerExample
 ```
+
+Program output:
+
+```
+~$ ./build/XMLHandlerExample
+Handling XML with version 1.0
+Handling XML with version 2.0
+Error: Version not found
+~$
+```
