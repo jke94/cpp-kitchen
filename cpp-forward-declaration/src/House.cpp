@@ -28,5 +28,4 @@ namespace HouseNamespace
 
         return door_->getDoorType();
     }
-
 }
