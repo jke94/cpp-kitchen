@@ -36,18 +36,18 @@ std::ostream& operator<<(std::ostream& os, HouseNamespace::DoorType door)
 {
     switch (door)
     {
-    case HouseNamespace::DoorType::Wooden:
-        os << "Wooden";
-        break;
-    case HouseNamespace::DoorType::Glass:
-        os << "Glass";
-        break;
-    case HouseNamespace::DoorType::Unknown:
-        os << "Unknown";
-        break;
-    default:
-        os << "NotDefined";
-        break;
+        case HouseNamespace::DoorType::Wooden:
+            os << "Wooden";
+            break;
+        case HouseNamespace::DoorType::Glass:
+            os << "Glass";
+            break;
+        case HouseNamespace::DoorType::Unknown:
+            os << "Unknown";
+            break;
+        default:
+            os << "NotDefined";
+            break;
     }
 
     return os;
