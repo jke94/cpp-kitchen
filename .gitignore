@@ -55,3 +55,6 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 build/
+
+# Executables
+cpp-forward-declaration/example_cpp_forward_declaration
