@@ -58,3 +58,6 @@ build/
 
 # Executables
 cpp-forward-declaration/example_cpp_forward_declaration
+
+# cpp-mediator
+cpp-mediator/mediator
