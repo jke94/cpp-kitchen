@@ -58,3 +58,6 @@ build/
 
 # Executables
 cpp-forward-declaration/example_cpp_forward_declaration
+
+# cpp-di-container
+cpp-di-container/cpp-di-container-sample
