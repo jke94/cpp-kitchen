@@ -1,21 +1,24 @@
-#include "di_config.h"
-
-#include "DIContext.h"
+#include "DIConfigurator.h"
 #include "ILogger.h"
 #include "ConsoleLogger.h"
 #include "Application.h"
 
-void configureDependencies() 
+ConfigDependenciesResult configureDependencies() 
 {
-    DIContext::registerFactory<ILogger>([](Container&) 
+    DIConfigurator::registerFactory<ILogger>([](Container&) 
     {
         return std::make_shared<ConsoleLogger>();
     }, 
-    Scope::Singleton); // 👈 Aquí especificamos el scope
+    Scope::Singleton);
 
-    DIContext::registerFactory<IApplication>([](Container& c) 
+    DIConfigurator::registerFactory<IApplication>([](Container& c) 
     {
         return std::make_shared<Application>(c.resolve<ILogger>());
     }, 
-    Scope::Transient);  // 👈 Aquí especificamos el scope
+    Scope::Transient);
+
+    // TODO: Add more dependencies as needed
+
+    // TODO: Add logic en case of failure
+    return ConfigDependenciesResult::Success;
 }

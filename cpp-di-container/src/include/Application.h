@@ -9,8 +9,12 @@ class Application : public IApplication
 {
 public:
     Application(std::shared_ptr<ILogger> logger) : logger_(std::move(logger)) {}
-    void run() {
-        logger_->log("Aplicación corriendo desde main");
+    void run() 
+    {
+        std::string addressMemory = std::to_string(reinterpret_cast<std::uintptr_t>(this));
+        std::string message = addressMemory + " | Aplicación corriendo desde main";
+        
+        logger_->log(message);
     }
 private:
     std::shared_ptr<ILogger> logger_;
