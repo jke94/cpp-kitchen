@@ -1,6 +1,8 @@
 #include "DIConfigurator.h"
 #include "ILogger.h"
 #include "ConsoleLogger.h"
+
+#include "IApplication.h"
 #include "Application.h"
 
 ConfigDependenciesResult configureDependencies() 

@@ -3,19 +3,16 @@
 
 #include <memory>
 #include "IApplication.h"
-#include "ILogger.h"
+
+// Forward declaration
+class ILogger;
 
 class Application : public IApplication
 {
 public:
-    Application(std::shared_ptr<ILogger> logger) : logger_(std::move(logger)) {}
-    void run() 
-    {
-        std::string addressMemory = std::to_string(reinterpret_cast<std::uintptr_t>(this));
-        std::string message = addressMemory + " | Aplicación corriendo desde main";
-        
-        logger_->log(message);
-    }
+    Application(std::shared_ptr<ILogger> logger);
+    ~Application() override = default;
+    void run() override;
 private:
     std::shared_ptr<ILogger> logger_;
 };

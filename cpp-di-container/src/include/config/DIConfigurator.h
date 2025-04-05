@@ -13,6 +13,4 @@ public:
     }
 };
 
-
-
 #endif // DI_CONFIGURATOR_H

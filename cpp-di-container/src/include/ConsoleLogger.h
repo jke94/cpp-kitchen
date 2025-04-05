@@ -7,10 +7,7 @@
 class ConsoleLogger : public ILogger 
 {
     public:
-        void log(const std::string& msg) override 
-        {
-            std::cout << this <<" | ConsoleLogger: " << msg << std::endl;
-        }
+        void log(const std::string& msg) override;
     };
 
 #endif // CONSOLE_LOGGER_H
