@@ -6,15 +6,18 @@
 
 // Forward declaration
 class ILogger;
+class IService;
 
 class Application : public IApplication
 {
-public:
-    Application(std::shared_ptr<ILogger> logger);
-    ~Application() override = default;
-    void run() override;
 private:
     std::shared_ptr<ILogger> logger_;
+    std::shared_ptr<IService> service_;
+
+public:
+    Application(std::shared_ptr<ILogger> logger, std::shared_ptr<IService> service);
+    ~Application() override = default;
+    void run() override;
 };
 
 #endif // APPLICATION_H

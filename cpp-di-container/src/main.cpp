@@ -2,27 +2,43 @@
 
 #include "DIContext.h"
 #include "IApplication.h"
-#include "ILogger.h"
 
-int main() 
+AppConfig parseArgs(int argc, char* argv[]);
+
+int main(int argc, char* argv[]) 
 {
-    ConfigDependenciesResult configDependenciesResultType = configureDependencies();
+    AppConfig appConfig = parseArgs(argc, argv);
+
+    ConfigDependenciesResult configDependenciesResultType = configureDependencies(appConfig);
     
     if (configDependenciesResultType != ConfigDependenciesResult::Success) 
     {
         std::cerr << "Error configuring dependencies" << std::endl;
         return -1;
     }
+
     std::cout << "Dependencies configured successfully" << std::endl;
+
+    // Play with the DI container
 
     auto app1 = DIContext::resolve<IApplication>();
     auto app2 = DIContext::resolve<IApplication>();
 
     app1->run();
-    app2->run(); // Debe crear una nueva instancia si es transient
-
-    auto logger = DIContext::resolve<ILogger>();
-    logger->log("Usando logger compartido desde main");
+    app2->run(); // Should be different instance as app1
 
     return 0;
+}
+
+AppConfig parseArgs(int argc, char* argv[])
+{
+    AppConfig appConfig;
+
+    // TODO: Implement parseArgs to parse command line arguments
+
+    appConfig.logFilename = "app.log";
+    appConfig.port = 8080;
+    appConfig.dbConnectionString = "localhost:5432/mydb";
+    
+    return appConfig;
 }

@@ -3,12 +3,20 @@
 
 #include "Container.h"
 
+/**
+ * @brief Dependency Injection Context.
+ * @details This class provides a singleton instance of the DI container and allows for the registration and resolution of dependencies.
+ */
 class DIConfigurator;
 
+/**
+ * @brief Dependency Injection Context.
+ * @details This class provides a singleton instance of the DI container and allows for the registration and resolution of dependencies.
+ */
 class DIContext 
 {
 public:
-    static Container& instance() 
+    static Container& instance()
     {
         static Container container;
         return container;
@@ -21,7 +29,8 @@ public:
     }
 
 private:
-    // Sólo DIConfigurator puede registrar
+
+    // Only DIConfigurator can register factories
     friend class DIConfigurator;
 
     template<typename T>
@@ -29,6 +38,17 @@ private:
     {
         instance().registerFactory<T>(std::move(factory), scope);
     }
+};
+
+/**
+ * @brief Application configuration structure.
+ * @details This structure holds the configuration settings for the application.
+ */
+struct AppConfig 
+{
+    std::string logFilename;
+    int port;
+    std::string dbConnectionString;
 };
 
 /**
@@ -45,6 +65,6 @@ enum class ConfigDependenciesResult
  * @brief Configures the DI container with the necessary dependencies.
  * @details This function registers the factories for the dependencies in the DI container.
  */
-ConfigDependenciesResult configureDependencies();
+ConfigDependenciesResult configureDependencies(AppConfig& appConfig);
 
 #endif // DI_CONTEXT_H
