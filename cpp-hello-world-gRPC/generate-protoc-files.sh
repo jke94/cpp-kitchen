@@ -1,6 +1,8 @@
 which protoc
 which grpc_cpp_plugin
 
+protoc --version
+
 mkdir -p src_auto_proto
 
 protoc -I=./proto \

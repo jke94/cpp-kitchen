@@ -33,4 +33,7 @@ target_include_directories(client PRIVATE
     proto 
     src_auto_proto
 )
-target_link_libraries(client PRIVATE gRPC::grpc++ protobuf::libprotobuf)
+target_link_libraries(client PRIVATE 
+    gRPC::grpc++ 
+    protobuf::libprotobuf
+)
