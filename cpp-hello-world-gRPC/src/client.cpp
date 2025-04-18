@@ -14,11 +14,19 @@ using greeter::HelloReply;
 
 class GreeterClient 
 {
- public:
-  GreeterClient(std::shared_ptr<Channel> channel)
-      : stub_(Greeter::NewStub(channel)) {}
+public:
+    GreeterClient(std::shared_ptr<Channel> channel);
+    std::string SayHello(const std::string& name);
 
-  std::string SayHello(const std::string& name) {
+private:
+    std::unique_ptr<Greeter::Stub> stub_;
+};
+
+GreeterClient::GreeterClient(std::shared_ptr<Channel> channel)
+    : stub_(Greeter::NewStub(channel)) {}
+
+std::string GreeterClient::SayHello(const std::string& name) 
+{
     HelloRequest request;
     request.set_name(name);
 
@@ -26,22 +34,24 @@ class GreeterClient
     ClientContext context;
 
     Status status = stub_->SayHello(&context, request, &reply);
-    if (status.ok()) {
-      return reply.message();
-    } else {
-      return "RPC failed";
-    }
-  }
+    
+    if (!status.ok()) 
+    {
+        return "RPC failed";
+    } 
 
- private:
-  std::unique_ptr<Greeter::Stub> stub_;
-};
+    return reply.message();
+}
 
-int main() {
-  GreeterClient greeter(grpc::CreateChannel("localhost:50051", grpc::InsecureChannelCredentials()));
-  std::string user("Carlos");
-  std::string reply = greeter.SayHello(user);
-  std::cout << "Greeter recibió: " << reply << std::endl;
+int main() 
+{
+    GreeterClient greeter(grpc::CreateChannel(
+        "localhost:50051", 
+        grpc::InsecureChannelCredentials())
+    );
+    std::string user("Mike");
+    std::string reply = greeter.SayHello(user);
+    std::cout << "Greeter recibió: " << reply << std::endl;
 
   return 0;
 }

@@ -13,30 +13,59 @@ using greeter::Greeter;
 using greeter::HelloRequest;
 using greeter::HelloReply;
 
-// Implementación del servicio
-class GreeterServiceImpl final : public Greeter::Service {
-  Status SayHello(ServerContext* context, const HelloRequest* request,
-                  HelloReply* reply) override {
-    std::string prefix("Hola, ");
-    reply->set_message(prefix + request->name());
-    return Status::OK;
-  }
+/**
+ * @brief Implementación del servicio Greeter
+ */
+class GreeterServiceImpl final : public Greeter::Service 
+{
+public:
+    GreeterServiceImpl();
+
+    Status SayHello(
+        ServerContext* context, 
+        const HelloRequest* request,
+        HelloReply* reply
+    ) override;
+
+private:
+    int responseCounter_;
 };
 
-void RunServer() {
-  std::string server_address("0.0.0.0:50051");
-  GreeterServiceImpl service;
-
-  ServerBuilder builder;
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-  builder.RegisterService(&service);
-  std::unique_ptr<Server> server(builder.BuildAndStart());
-
-  std::cout << "Servidor escuchando en " << server_address << std::endl;
-  server->Wait();
+GreeterServiceImpl::GreeterServiceImpl() 
+    : responseCounter_(0) 
+{
 }
 
-int main() {
-  RunServer();
-  return 0;
+Status GreeterServiceImpl::SayHello(
+    ServerContext* context, 
+    const HelloRequest* request,
+    HelloReply* reply)
+{
+    responseCounter_++;
+    std::string response = "[Request " + std::to_string(responseCounter_) + "] " + "Hola, " + request->name();
+    reply->set_message(response);
+
+    return Status::OK;    
+}
+
+
+void runServer()
+{
+    std::string server_address("localhost:50051");
+    GreeterServiceImpl service;
+
+    ServerBuilder serviceBuilder;
+    serviceBuilder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+    serviceBuilder.RegisterService(&service);
+
+    std::unique_ptr<Server> server(serviceBuilder.BuildAndStart());
+
+    std::cout << "Servidor escuchando en " << server_address << std::endl;
+    server->Wait();
+}
+
+int main() 
+{
+    runServer();
+    return 0;
 }
