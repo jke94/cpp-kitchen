@@ -1,7 +1,9 @@
+#include "AlphaService.h"
+
+#include <cstdint>
 #include <iostream>
 #include <memory>
 #include <string>
-#include "AlphaService.h"
 
 void AlphaService::execute()
 {
