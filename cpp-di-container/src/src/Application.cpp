@@ -1,7 +1,9 @@
+#include "Application.h"
+
+#include <cstdint>
 #include <memory>
 #include <string>
 
-#include "Application.h"
 #include "ILogger.h"
 #include "IService.h"
 #include "AlphaService.h"
