@@ -1,17 +1,12 @@
 #ifndef TOWER_CONTROL_H
 #define TOWER_CONTROL_H
 
-#include "IAirTrafficControl.h"
-
-/**
- * @brief Forward declaration of IAirplane.
- */
-class IAirplane;
+#include "IAirTrafficControlApi.h"
 
 /**
  * @brief Concrete Mediator class.
  */
-class TowerControl : public IAirTrafficControl 
+class AirTrafficControlTower : public IAirTrafficControl 
 {
 private:
 

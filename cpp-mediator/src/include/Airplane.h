@@ -3,18 +3,20 @@
 
 #include <iostream>
 #include <string>
-#include "IAirplane.h"
 
-class IAirTrafficControl;
+#include "IAirTrafficControlApi.h"
 
+/**
+ * @brief Concrete implementation of an airplane.
+ */
 class Airplane : public IAirplane
 {
-protected:
-    IAirTrafficControl* mediator;
+private:
+    IAirTrafficControl* airTrafficControlMediator_;
     std::string id;
 
 public:
-    Airplane(IAirTrafficControl* med, std::string identifier);
+    Airplane(IAirTrafficControl* airTrafficControlMediator, std::string identifier);
 
     void requestLanding() override;
 
