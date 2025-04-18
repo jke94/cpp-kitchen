@@ -1,5 +1,6 @@
 #include "IAirTrafficControlApi.h"
 
+#include <memory>
 #include <string>
 
 #include "Airplane.h"
@@ -7,13 +8,13 @@
 
 namespace trafficControlMediator
 {
-    IAirplane* createAirplane(IAirTrafficControl* airTrafficControlTower, std::string id)
+    std::shared_ptr<IAirplane> createAirplane(IAirTrafficControl* airTrafficControlTower, std::string id)
     {
-        return new Airplane(airTrafficControlTower, id);
+        return std::make_shared<Airplane>(airTrafficControlTower, id);
     }
     
-    IAirTrafficControl* createAirTrafficControlTower()
+    std::shared_ptr<IAirTrafficControl> createAirTrafficControlTower() 
     {
-        return new AirTrafficControlTower();
+        return std::make_shared<AirTrafficControlTower>();
     }
 } // namespace trafficControlMediator

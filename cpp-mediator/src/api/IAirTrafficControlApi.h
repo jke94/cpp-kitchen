@@ -1,6 +1,7 @@
 #ifndef I_AIR_TRAFFIC_CONTROL_H
 #define I_AIR_TRAFFIC_CONTROL_H
 
+#include <memory>
 #include <string>
 
 namespace trafficControlMediator
@@ -44,8 +45,16 @@ namespace trafficControlMediator
         IAirTrafficControl& operator=(IAirTrafficControl&&) = delete;
     };
 
-    IAirplane* createAirplane(IAirTrafficControl* airTrafficControlTower, std::string id);
-    IAirTrafficControl* createAirTrafficControlTower();
+    /**
+     * @brief Create airplane instance.
+     */
+    std::shared_ptr<IAirplane> createAirplane(IAirTrafficControl* airTrafficControlTower, std::string id);
+    
+    /**
+     * @brief Create air traffic control tower instance.
+     */
+    std::shared_ptr<IAirTrafficControl> createAirTrafficControlTower();
+
 } // namespace trafficControlMediator
 
 #endif // I_AIR_TRAFFIC_CONTROL_H

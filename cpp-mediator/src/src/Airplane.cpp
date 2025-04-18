@@ -4,6 +4,8 @@
 #include <string>
 #include <memory>
 
+#include "IAirTrafficControlApi.h"
+
 namespace trafficControlMediator
 {
     Airplane::Airplane(

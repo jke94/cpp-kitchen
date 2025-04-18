@@ -8,13 +8,13 @@ using namespace trafficControlMediator;
 int main() 
 {
     // Create the air traffic control tower
-    std::shared_ptr<IAirTrafficControl> airTrafficControlTower = std::shared_ptr<IAirTrafficControl>(createAirTrafficControlTower());
+    std::shared_ptr<IAirTrafficControl> airTrafficControlTower = createAirTrafficControlTower();
 
     // Create airplanes
-    std::shared_ptr<IAirplane> plane1 = std::shared_ptr<IAirplane>(createAirplane(airTrafficControlTower.get(), "AA123"));
-    std::shared_ptr<IAirplane> plane2 = std::shared_ptr<IAirplane>(createAirplane(airTrafficControlTower.get(), "BB456"));
-    std::shared_ptr<IAirplane> plane3 = std::shared_ptr<IAirplane>(createAirplane(airTrafficControlTower.get(), "JK1994"));
-    std::shared_ptr<IAirplane> plane4 = std::shared_ptr<IAirplane>(createAirplane(airTrafficControlTower.get(), "ALEX19"));
+    std::shared_ptr<IAirplane> plane1 = createAirplane(airTrafficControlTower.get(), "AA123");
+    std::shared_ptr<IAirplane> plane2 = createAirplane(airTrafficControlTower.get(), "BB456");
+    std::shared_ptr<IAirplane> plane3 = createAirplane(airTrafficControlTower.get(), "JK1994");
+    std::shared_ptr<IAirplane> plane4 = createAirplane(airTrafficControlTower.get(), "ALEX19");
     
     // Simulate airplane landing and takeoff requests.
     plane1->requestLanding();
