@@ -3,6 +3,8 @@
 
 #include "IAirTrafficControlApi.h"
 
+using namespace trafficControlMediator;
+
 int main() 
 {
     // Create the air traffic control tower

@@ -5,12 +5,15 @@
 #include "Airplane.h"
 #include "AirTrafficControlTower.h"
 
-IAirplane* createAirplane(IAirTrafficControl* airTrafficControlTower, std::string id)
+namespace trafficControlMediator
 {
-    return new Airplane(airTrafficControlTower, id);
-}
-
-IAirTrafficControl* createAirTrafficControlTower()
-{
-    return new AirTrafficControlTower();
-}
+    IAirplane* createAirplane(IAirTrafficControl* airTrafficControlTower, std::string id)
+    {
+        return new Airplane(airTrafficControlTower, id);
+    }
+    
+    IAirTrafficControl* createAirTrafficControlTower()
+    {
+        return new AirTrafficControlTower();
+    }
+} // namespace trafficControlMediator

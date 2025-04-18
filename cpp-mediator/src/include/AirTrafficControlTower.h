@@ -3,23 +3,26 @@
 
 #include "IAirTrafficControlApi.h"
 
-/**
- * @brief Concrete Mediator class.
- */
-class AirTrafficControlTower : public IAirTrafficControl 
+namespace trafficControlMediator
 {
-private:
-
     /**
-     * @brief Flag to indicate if the runway is free (only one runway).
+     * @brief Concrete Mediator class.
      */
-    bool runwayFree = true;  
+    class AirTrafficControlTower : public IAirTrafficControl 
+    {
+    private:
 
-public:
+        /**
+         * @brief Flag to indicate if the runway is free (only one runway).
+         */
+        bool runwayFree = true;  
 
-    void requestLanding(IAirplane* airplane) override;
-    void requestTakeoff(IAirplane* airplane) override;
-};
+    public:
 
+        void requestLanding(IAirplane* airplane) override;
+        void requestTakeoff(IAirplane* airplane) override;
+    };
+
+} // namespace trafficControlMediator
 
 #endif // TOWER_CONTROL_H

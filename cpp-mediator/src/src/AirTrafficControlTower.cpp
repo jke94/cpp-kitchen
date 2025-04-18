@@ -4,32 +4,36 @@
 #include <memory>
 #include <string>
 
-void AirTrafficControlTower::requestLanding(IAirplane* airplane)
+namespace trafficControlMediator
 {
-    if(runwayFree) 
+    void AirTrafficControlTower::requestLanding(IAirplane* airplane)
     {
-        std::cout << "Torre: Aprobado aterrizaje para " << airplane->getID() << "." << std::endl;
-        runwayFree = false;
-        airplane->land();
-        runwayFree = true;
-    } 
-    else 
-    {
-        std::cout << "Torre: Pista ocupada, " << airplane->getID() << " debe esperar." << std::endl;
+        if(runwayFree) 
+        {
+            std::cout << "Torre: Aprobado aterrizaje para " << airplane->getID() << "." << std::endl;
+            runwayFree = false;
+            airplane->land();
+            runwayFree = true;
+        } 
+        else 
+        {
+            std::cout << "Torre: Pista ocupada, " << airplane->getID() << " debe esperar." << std::endl;
+        }
     }
-}
 
-void AirTrafficControlTower::requestTakeoff(IAirplane* airplane)
-{
-    if(runwayFree) 
+    void AirTrafficControlTower::requestTakeoff(IAirplane* airplane)
     {
-        std::cout << "Torre: Aprobado despegue para " << airplane->getID() << "." << std::endl;
-        runwayFree = false;
-        airplane->takeoff();
-        runwayFree = true;
-    } 
-    else 
-    {
-        std::cout << "Torre: Pista ocupada, " << airplane->getID() << " debe esperar." << std::endl;
+        if(runwayFree) 
+        {
+            std::cout << "Torre: Aprobado despegue para " << airplane->getID() << "." << std::endl;
+            runwayFree = false;
+            airplane->takeoff();
+            runwayFree = true;
+        } 
+        else 
+        {
+            std::cout << "Torre: Pista ocupada, " << airplane->getID() << " debe esperar." << std::endl;
+        }
     }
-}
+
+} // namespace trafficControlMediator
