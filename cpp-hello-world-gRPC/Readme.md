@@ -16,9 +16,12 @@ The following command will generate a folder (`src_auto_proto`) with gRPC auto g
 
 ## Generate example with CMake
 
+- Generate makefiles.
+
 ```
 cmake -B ./build
 ```
+- Compile.
 
 ```
 cmake --build ./buid
