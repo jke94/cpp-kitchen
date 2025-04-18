@@ -1,7 +1,7 @@
+#include "ConsoleLogger.h"
+
 #include <string>
 #include <iostream>
-
-#include "ConsoleLogger.h"
 
 ConsoleLogger::ConsoleLogger(std::string filename) 
 {
