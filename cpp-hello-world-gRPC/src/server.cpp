@@ -42,7 +42,7 @@ Status GreeterServiceImpl::SayHello(
     HelloReply* reply)
 {
     responseCounter_++;
-    std::string response = "[Request " + std::to_string(responseCounter_) + "] " + "Hola, " + request->name();
+    std::string response = "[Request " + std::to_string(responseCounter_) + "] " + "Hi, " + request->name() + "!";
     reply->set_message(response);
 
     return Status::OK;    

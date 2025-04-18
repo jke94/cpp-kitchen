@@ -50,8 +50,10 @@ int main()
         grpc::InsecureChannelCredentials())
     );
     std::string user("Mike");
+
+    std::cout << "Client send: " << user << std::endl;
     std::string reply = greeter.SayHello(user);
-    std::cout << "Greeter recibió: " << reply << std::endl;
+    std::cout << "Greeter response: " << reply << std::endl;
 
   return 0;
 }
