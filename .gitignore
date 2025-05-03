@@ -58,6 +58,7 @@ build/
 
 # Executables
 cpp-forward-declaration/example_cpp_forward_declaration
+cpp-detached-logger/cpp-detached-logger
 
 # cpp-di-container
 cpp-di-container/cpp-di-container-sample
@@ -67,3 +68,7 @@ cpp-mediator/mediator
 
 # Valgrind ouput summary.
 valgrind-out.txt
+
+# cpp-detached-logger
+cpp-detached-logger/*.txt
+cpp-detached-logger/cpp-detached-logger

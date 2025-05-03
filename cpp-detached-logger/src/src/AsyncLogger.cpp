@@ -15,7 +15,9 @@ namespace detachedLogger
         bufferSize_(10), 
         exitFlag_(false), 
         initialized_(false)
-    {}
+    {
+        
+    }
 
     AsyncLogger::~AsyncLogger() 
     {

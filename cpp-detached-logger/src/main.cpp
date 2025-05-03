@@ -24,7 +24,7 @@ int main()
         return -1;
     }
     
-    for (int i = 0; i < 120; ++i) 
+    for (int i = 0; i < 120; ++i)
     {
         LOG_INFO("Log msg " + std::to_string(i));
 
@@ -37,7 +37,7 @@ int main()
     // Simulate some work
     std::this_thread::sleep_for(std::chrono::seconds(3));
 
-    for (int i = 0; i < 50; ++i) 
+    for (int i = 0; i < 53; ++i)
     {
         LOG_INFO("Log more msg " + std::to_string(i));
     }
