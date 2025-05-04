@@ -10,11 +10,11 @@ int main()
 {
     DetachedLoggerResult setupResult = DetachedLoggerResult::WTF;
 
-    setupResult = setUpDetachedLogger("log.txt", 10);
+    setupResult = setUpDetachedLogger("theLog.log", 1000);
 
     if (setupResult != DetachedLoggerResult::OK) 
     {
-        std::cerr << "Error setting up logger: " << static_cast<int>(setupResult) << std::endl;
+        std::cerr << "ERROR! Setting up logger: " << static_cast<int>(setupResult) << std::endl;
 
         return -1;
     }
@@ -23,7 +23,7 @@ int main()
 
     if (setupResult != DetachedLoggerResult::OK) 
     {
-        std::cerr << "Error initializing logger: " << static_cast<int>(setupResult) << std::endl;
+        std::cerr << "ERROR! Initialize detached logger result: " << static_cast<int>(setupResult) << std::endl;
 
         return -1;
     }
@@ -50,12 +50,12 @@ int main()
 
     if (setupResult != DetachedLoggerResult::OK) 
     {
-        std::cerr << "Error finalizing logger: " << static_cast<int>(setupResult) << std::endl;
+        std::cerr << "ERROR! Finalize logger result: " << static_cast<int>(setupResult) << std::endl;
 
         return -1;
     }
 
-    std::cout << "Sample logger using detached logger finished successfully." << std::endl;
+    std::cout << "OK! Sample logger using detached logger finished successfully and detached log result: " << static_cast<int>(setupResult) << std::endl;
 
     return 0;
 }

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <sstream>
 
 namespace detachedLogger
 {
@@ -40,10 +41,29 @@ namespace detachedLogger
         );
 
         initialized_ = true;
+
+        std::ostringstream ss;
+
+        ss << "Thread ";
+        ss << std::this_thread::get_id();
+        ss << ". AsyncLogger initialized. Buffer size: ";
+        ss << bufferSize_;
+        ss << " and filename: ";
+        ss << filename_;
+
+        log(ss.str());
     }
 
     void AsyncLogger::finalize()
     {
+        std::ostringstream ss;
+
+        ss << "Thread ";
+        ss << std::this_thread::get_id();
+        ss << ". AsyncLogger finalize.";
+
+        log(ss.str());
+
         if (!initialized_)
         {
             return;
