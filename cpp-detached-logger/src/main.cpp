@@ -55,5 +55,7 @@ int main()
         return -1;
     }
 
+    std::cout << "Sample logger using detached logger finished successfully." << std::endl;
+
     return 0;
 }
