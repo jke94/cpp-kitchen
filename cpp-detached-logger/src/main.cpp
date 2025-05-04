@@ -8,19 +8,23 @@ using namespace detachedLogger;
 
 int main() 
 {
-    DetachedLoggerResult setupResult = setUpDetachedLogger("log.txt", 5);
+    DetachedLoggerResult setupResult = DetachedLoggerResult::WTF;
+
+    setupResult = setUpDetachedLogger("log.txt", 5);
 
     if (setupResult != DetachedLoggerResult::OK) 
     {
         std::cerr << "Error setting up logger: " << static_cast<int>(setupResult) << std::endl;
+
         return -1;
     }
 
-    DetachedLoggerResult initResult = initalizeDetachedLogger();
+    setupResult = initalizeDetachedLogger();
 
-    if (initResult != DetachedLoggerResult::OK) 
+    if (setupResult != DetachedLoggerResult::OK) 
     {
-        std::cerr << "Error initializing logger: " << static_cast<int>(initResult) << std::endl;
+        std::cerr << "Error initializing logger: " << static_cast<int>(setupResult) << std::endl;
+
         return -1;
     }
     
@@ -42,11 +46,13 @@ int main()
         LOG_INFO("Log more msg " + std::to_string(i));
     }
 
-    DetachedLoggerResult finalizeResult = finalizeDetachedLogger();
+    setupResult = finalizeDetachedLogger();
 
-    if (finalizeResult != DetachedLoggerResult::OK) 
+    if (setupResult != DetachedLoggerResult::OK) 
     {
-        std::cerr << "Error finalizing logger: " << static_cast<int>(finalizeResult) << std::endl;
+        std::cerr << "Error finalizing logger: " << static_cast<int>(setupResult) << std::endl;
+
+        return -1;
     }
 
     return 0;

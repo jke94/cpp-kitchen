@@ -14,7 +14,7 @@ namespace detachedLogger
         virtual void log(const std::string& message) = 0;    
     
     protected:
-        IAsyncLogger() {}
+        IAsyncLogger() = default;
         IAsyncLogger(const IAsyncLogger&) = delete;
         IAsyncLogger& operator=(const IAsyncLogger&) = delete;
         IAsyncLogger(IAsyncLogger&&) = delete;
