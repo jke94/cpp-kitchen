@@ -12,7 +12,7 @@ namespace detachedLogger
         size_t bufferSize
     ) : 
         filename_(filename), 
-        bufferSize_(10), 
+        bufferSize_(bufferSize), 
         exitFlag_(false), 
         initialized_(false)
     {
@@ -32,7 +32,13 @@ namespace detachedLogger
         } 
 
         exitFlag_ = false;
-        workerThread_ = std::thread([this]() { this->worker(); });
+        workerThread_ = std::thread(
+            [this]()
+            { 
+                this->worker(); 
+            }
+        );
+
         initialized_ = true;
     }
 

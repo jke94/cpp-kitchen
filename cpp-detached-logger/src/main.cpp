@@ -10,7 +10,7 @@ int main()
 {
     DetachedLoggerResult setupResult = DetachedLoggerResult::WTF;
 
-    setupResult = setUpDetachedLogger("log.txt", 5);
+    setupResult = setUpDetachedLogger("log.txt", 10);
 
     if (setupResult != DetachedLoggerResult::OK) 
     {
