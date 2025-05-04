@@ -1,4 +1,5 @@
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <thread>
 
@@ -10,7 +11,7 @@ int main()
 {
     DetachedLoggerResult setupResult = DetachedLoggerResult::WTF;
 
-    setupResult = setUpDetachedLogger("theLog.log", 1000);
+    setupResult = setUpDetachedLogger("theLog.log", 15);
 
     if (setupResult != DetachedLoggerResult::OK) 
     {
@@ -28,13 +29,18 @@ int main()
         return -1;
     }
     
+    std::ostringstream ss;
+
+    ss << "I am thread  ";
+    ss << std::this_thread::get_id();
+
     for (int i = 0; i < 120; ++i)
     {
-        LOG_INFO("Log msg " + std::to_string(i));
+        LOG_INFO(ss.str() + ". Log msg " + std::to_string(i));
 
         if( i % 10 == 0) 
         {
-            LOG_ERROR("Ups! " + std::to_string(i));
+            LOG_ERROR(ss.str() + ". Ups! " + std::to_string(i));
         }
     }
 
@@ -43,7 +49,7 @@ int main()
 
     for (int i = 0; i < 53; ++i)
     {
-        LOG_INFO("Log more msg " + std::to_string(i));
+        LOG_INFO(ss.str() + ". Log more msg " + std::to_string(i));
     }
 
     setupResult = finalizeDetachedLogger();

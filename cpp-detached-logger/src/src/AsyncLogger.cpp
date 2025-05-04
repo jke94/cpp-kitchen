@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <sstream>
+#include <thread>
 
 namespace detachedLogger
 {
@@ -41,29 +42,10 @@ namespace detachedLogger
         );
 
         initialized_ = true;
-
-        std::ostringstream ss;
-
-        ss << "Thread ";
-        ss << std::this_thread::get_id();
-        ss << ". AsyncLogger initialized. Buffer size: ";
-        ss << bufferSize_;
-        ss << " and filename: ";
-        ss << filename_;
-
-        log(ss.str());
     }
 
     void AsyncLogger::finalize()
     {
-        std::ostringstream ss;
-
-        ss << "Thread ";
-        ss << std::this_thread::get_id();
-        ss << ". AsyncLogger finalize.";
-
-        log(ss.str());
-
         if (!initialized_)
         {
             return;
@@ -96,6 +78,17 @@ namespace detachedLogger
 
     void AsyncLogger::worker() 
     {
+        std::ostringstream ss;
+
+        ss << "Thread ";
+        ss << std::this_thread::get_id();
+        ss << ". AsyncLogger initialized. Buffer size: ";
+        ss << bufferSize_;
+        ss << " and filename: ";
+        ss << filename_;
+
+        log(ss.str());
+
         while (true) 
         {
             std::vector<std::string> localBuffer;
@@ -114,7 +107,13 @@ namespace detachedLogger
             flushToFile(localBuffer);
         }
 
-        // Volcado final si quedan mensajes
+        std::ostringstream ssEnd;
+        ssEnd << "Thread ";
+        ssEnd << std::this_thread::get_id();
+        ssEnd << ". AsyncLogger finalize.";
+        log(ssEnd.str());
+
+        // Log the final message before exiting
         flushRemaining();
     }
 

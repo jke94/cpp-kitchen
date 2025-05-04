@@ -71,4 +71,5 @@ valgrind-out.txt
 
 # cpp-detached-logger
 cpp-detached-logger/*.txt
+cpp-detached-logger/*.log
 cpp-detached-logger/cpp-detached-logger
