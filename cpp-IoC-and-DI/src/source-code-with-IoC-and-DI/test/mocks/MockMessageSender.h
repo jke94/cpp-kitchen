@@ -5,11 +5,14 @@
 
 #include "IMessageSender.h"
 
-class MockMessageSender : public IMessageSender 
+namespace UnitTestsSourceCodeWithIoCAndDI
 {
-public:
-    MOCK_METHOD(void, send, (std::string message), (override));
-};
+    class MockMessageSender : public IMessageSender 
+    {
+    public:
+        MOCK_METHOD(void, send, (std::string message), (override));
+    };
 
+} // namespace UnitTestsSourceCodeWithIoCAndDI
 
 #endif // MOCK_MESSAGE_SENDER_H

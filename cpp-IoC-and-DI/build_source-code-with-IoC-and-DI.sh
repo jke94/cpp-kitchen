@@ -17,6 +17,7 @@ g++ \
   ./src/source-code-with-IoC-and-DI/test/UnitTestsMain.cpp \
   -I./src/source-code-with-IoC-and-DI/interfaces \
   -I./src/source-code-with-IoC-and-DI/include \
+  -I./src/source-code-with-IoC-and-DI/test/include \
   -I./src/source-code-with-IoC-and-DI/test/mocks \
   -I./src/source-code-with-IoC-and-DI/test \
   -std=c++14 \

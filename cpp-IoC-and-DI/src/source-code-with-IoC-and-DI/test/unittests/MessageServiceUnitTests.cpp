@@ -11,38 +11,43 @@ using ::testing::NiceMock;
 using ::testing::Exactly;
 using ::testing::StrEq;
 
-TEST(MessageServiceTest, ShouldNotSendMessageWhenSenderIsNull) 
+namespace UnitTestsSourceCodeWithIoCAndDI
 {
-    // Arrange
-    auto mockSender = std::make_unique<StrictMock<MockMessageSender>>();
-    std::string testMessage = "Should not crash";
 
-    // Expect
-    EXPECT_CALL(*mockSender, send(StrEq(testMessage))).Times(Exactly(0));
+    TEST(MessageServiceTest, ShouldNotSendMessageWhenSenderIsNull) 
+    {
+        // Arrange
+        auto mockSender = std::make_unique<StrictMock<MockMessageSender>>();
+        std::string testMessage = "Should not crash";
 
-    // Act
-    MessageService service(nullptr);
-    service.sendMessage(testMessage); // Do not expect crash
+        // Expect
+        EXPECT_CALL(*mockSender, send(StrEq(testMessage))).Times(Exactly(0));
 
-    // Assert
+        // Act
+        MessageService service(nullptr);
+        service.sendMessage(testMessage); // Do not expect crash
 
-    // After
-}
+        // Assert
 
-TEST(MessageServiceTest, ShouldSendMessageWhenSenderIsValid) 
-{
-    // Arrange
-    auto mockSender = std::make_unique<StrictMock<MockMessageSender>>();
-    std::string testMessage = "Hello";
+        // After
+    }
 
-    // Expect: se espera que send() se llame con el mensaje correcto
-    EXPECT_CALL(*mockSender, send(StrEq(testMessage))).Times(Exactly(1));
+    TEST(MessageServiceTest, ShouldSendMessageWhenSenderIsValid) 
+    {
+        // Arrange
+        auto mockSender = std::make_unique<StrictMock<MockMessageSender>>();
+        std::string testMessage = "Hello";
 
-    // Act
-    MessageService service(std::move(mockSender));
-    service.sendMessage(testMessage);
+        // Expect: se espera que send() se llame con el mensaje correcto
+        EXPECT_CALL(*mockSender, send(StrEq(testMessage))).Times(Exactly(1));
 
-    // Assert
+        // Act
+        MessageService service(std::move(mockSender));
+        service.sendMessage(testMessage);
 
-    // After
-}
+        // Assert
+
+        // After
+    }
+
+} // namespace UnitTestsSourceCodeWithIoCAndDI
