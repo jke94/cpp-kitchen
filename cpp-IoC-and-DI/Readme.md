@@ -34,9 +34,17 @@ void conRAII()
 
 ## Build and run samples
 
+### Source code with dependency injection strategy.
+
+Go to `src` folder and built client sample and unit tests executable.
+
+> You need install GTests and GMock libraries (`sudo apt install libgtest-dev libgmock-dev`)
+
 ```
-g++ ./src/source-code-without-IoC-and-DI.cpp -o ./source-code-without-IoC-and-DI
+. ./build_source-code-with-IoC-and-DI.sh
 ```
+
+Go to `src` folder and built client sample
 
 ```
 g++ ./src/source-code-with-IoC-and-DI.cpp -o ./source-code-with-IoC-and-DI
