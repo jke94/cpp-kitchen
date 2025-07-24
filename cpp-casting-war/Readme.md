@@ -2,7 +2,7 @@
 
 How C++ casting can be used to isolate implementation and offer the client to program logic against the interface.
 
-```
+```mermaid
 classDiagram
     class IDevice {
         <<interface>>
