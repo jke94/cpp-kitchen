@@ -117,7 +117,13 @@ namespace cppUpdatarThreadItems
     class Updater final : public IUpdater
     {
     public:
-        Updater() = default;
+
+        /**
+         * @brief Constructor for Updater.
+         * @param pollingTime Time in milliseconds to wait before next update cycle.
+         * @note Default polling time is 3000 milliseconds.
+         */
+        Updater(int pollingTime);
         ~Updater() override;
 
         void startUpdate() override;
@@ -130,8 +136,21 @@ namespace cppUpdatarThreadItems
         std::atomic<bool> running_{false};
         std::atomic<bool> stopRequested_{false};
 
+        /**
+         * @brief Time in milliseconds to wait before next update cycle in milliseconds.
+         */
+        int pollingTime_ = 3000; 
+
+        /**
+         * @brief Function that runs in a separate thread to perform updates.
+         */
         void runUpdate();
     };
+
+    Updater::Updater(int pollingTime)
+    : pollingTime_(pollingTime)
+    {
+    }
 
     void Updater::startUpdate()
     {
@@ -175,9 +194,9 @@ namespace cppUpdatarThreadItems
         while (!stopRequested_)
         {
             // Simulate update work
-            LOG_CONSOLE_INFO("I am thead (", std::this_thread::get_id(), "). Running update...");
+            LOG_CONSOLE_INFO("I am thead (", std::this_thread::get_id(), "). Running update with polling time: ", pollingTime_, " ms");
             lock.unlock();
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            std::this_thread::sleep_for(std::chrono::milliseconds(pollingTime_));
             lock.lock();
 
             // Wait for stop or timeout (simulate "next work cycle")
@@ -241,7 +260,7 @@ namespace cppUpdatarThreadItems
     {
     public:
         virtual ~IDeviceBuilder() = default;
-        virtual IDeviceBuilder& setUpdaterThread() = 0;
+        virtual IDeviceBuilder& setUpdaterThreadWithPollingTimeInMs(int pollingTime) = 0;
         virtual IDevice* build() = 0;
     
     protected:
@@ -257,7 +276,7 @@ namespace cppUpdatarThreadItems
     public:
         DeviceBuilder() = default;
         ~DeviceBuilder() override = default;
-        IDeviceBuilder& setUpdaterThread() override;
+        IDeviceBuilder& setUpdaterThreadWithPollingTimeInMs(int pollingTime) override;
         IDevice* build() override;
     
     private:
@@ -269,11 +288,11 @@ namespace cppUpdatarThreadItems
         return new Device(updater_);
     }
 
-    IDeviceBuilder& DeviceBuilder::setUpdaterThread()
+    IDeviceBuilder& DeviceBuilder::setUpdaterThreadWithPollingTimeInMs(int pollingTime)
     {
         if (updater_ == nullptr)
         {
-            updater_ = new Updater();
+            updater_ = new Updater(pollingTime);
         }
 
         updater_->startUpdate();
@@ -292,11 +311,11 @@ int main (int argc, char* argv[])
 
     for (int i = 0; i < nThreads; ++i) 
     {
-        auto builder = std::make_unique<DeviceBuilder>();
-        devices.emplace_back(builder->setUpdaterThread().build());
+        auto deviceBuilder = std::make_unique<DeviceBuilder>();
+        devices.emplace_back(deviceBuilder->setUpdaterThreadWithPollingTimeInMs(3000).build());
     }
 
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    std::this_thread::sleep_for(std::chrono::seconds(7));
 
     return 0;
 }
