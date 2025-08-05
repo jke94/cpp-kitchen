@@ -1,12 +1,104 @@
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
+#include <ctime>
+#include <iomanip>
 #include <iostream>
 #include <mutex>
 #include <thread>
+#include <sstream>
 #include <vector>
+
+namespace cppUpdatarThreadItemsLogger
+{
+    std::mutex mutex_;
+    
+    enum class LOG_LEVEL
+    {
+        INFO,
+        WARNING,
+        ERROR,
+        CRITICAL,
+        VERBOSE
+    };
+
+    std::ostream &operator<<(std::ostream &os, LOG_LEVEL level)
+    {
+        switch (level)
+        {
+            case LOG_LEVEL::INFO: return os << "INFO";
+            case LOG_LEVEL::WARNING: return os << "WARNING";
+            case LOG_LEVEL::ERROR: return os << "ERROR";
+            case LOG_LEVEL::CRITICAL: return os << "CRITICAL";
+            case LOG_LEVEL::VERBOSE: return os << "VERBOSE";
+            default: return os << "UNKNOWN";
+        }
+    }
+
+    template <typename... Args>
+    std::string build_message(const Args&... args) 
+    {
+        std::ostringstream stream;
+        int dummy[] = {0, (stream << args, 0)...};
+        return stream.str();
+    }
+
+    std::string currentDateTime()
+    {
+        using namespace std::chrono;
+    
+        // Obtener el tiempo actual del sistema
+        auto now = system_clock::now();
+    
+        // Obtener la parte de tiempo como time_t para convertir a std::tm
+        std::time_t now_time_t = system_clock::to_time_t(now);
+    
+        // Obtener los milisegundos
+        auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
+    
+        // Convertir time_t a std::tm de forma segura (portátil)
+        std::tm tm_snapshot;
+    #if defined(_WIN32) || defined(_WIN64)
+        localtime_s(&tm_snapshot, &now_time_t);  // Windows
+    #else
+        localtime_r(&now_time_t, &tm_snapshot);  // POSIX
+    #endif
+    
+        // Construir string con formato deseado
+        std::ostringstream oss;
+        oss << std::put_time(&tm_snapshot, "%Y-%m-%d_%H:%M:%S");
+        oss << '.' << std::setw(3) << std::setfill('0') << ms.count();
+    
+        return oss.str();
+    }    
+
+    void log(const char *file, const char *function, const int line, const std::string &message, LOG_LEVEL logLevel)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        std::stringstream ss;
+
+        ss << "[" << currentDateTime() << "]";
+        ss << "[" << file << "|" << function << "|" << line << "]";
+        ss << " " << message;
+
+        std::cout << "[" << logLevel << "]"<< ss.str() << std::endl;
+    }
+
+    void logInfo(const char* file, const char* function, const int line, const std::string& message)
+    {
+        log(file, function, line, message, LOG_LEVEL::INFO);
+    }
+    
+    #define LOG_CONSOLE_INFO(...) logInfo(__FILE__, __FUNCTION__, __LINE__, build_message(__VA_ARGS__))
+
+}; // namespace cppUpdatarThreadItemsLogger
+
 
 namespace cppUpdatarThreadItems
 {
+    using namespace cppUpdatarThreadItemsLogger;
+
     class IUpdater
     {
     public:
@@ -53,7 +145,8 @@ namespace cppUpdatarThreadItems
         running_ = true;
 
         updateThread_ = std::thread(&Updater::runUpdate, this);
-        std::cout << "I am thead (" << std::this_thread::get_id() << "). Updater thread started." << std::endl;
+        
+        LOG_CONSOLE_INFO("I am thead (", std::this_thread::get_id(), "). Updater thread started.");
     }
 
     void Updater::stopUpdate()
@@ -65,22 +158,24 @@ namespace cppUpdatarThreadItems
         }
         cv_.notify_one();
 
-        if (updateThread_.joinable()) {
+        if (updateThread_.joinable()) 
+        {
             updateThread_.join();
         }
 
         running_ = false;
-        std::cout << "I am thead (" << std::this_thread::get_id() << "). Updater thread stopped." << std::endl;
+
+        LOG_CONSOLE_INFO("I am thead (", std::this_thread::get_id(), "). Updater thread stopped.");
     }
 
     void Updater::runUpdate()
     {
         std::unique_lock<std::mutex> lock(mtx_);
 
-        while (!stopRequested_) 
+        while (!stopRequested_)
         {
             // Simulate update work
-            std::cout << "I am thead (" << std::this_thread::get_id() << "). Running update..." << std::endl;
+            LOG_CONSOLE_INFO("I am thead (", std::this_thread::get_id(), "). Running update...");
             lock.unlock();
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
             lock.lock();
@@ -92,13 +187,13 @@ namespace cppUpdatarThreadItems
             });
         }
 
-        std::cout << "Updater thread exiting gracefully." << std::endl;
+        LOG_CONSOLE_INFO("I am thead (", std::this_thread::get_id(), "). Updater thread exiting gracefully.");
     }
 
     Updater::~Updater()
     {
         stopUpdate();  // Clean shutdown
-        std::cout << "Updater destroyed." << std::endl;
+        LOG_CONSOLE_INFO("Updater destroyed.");
     }
 
     class IDevice
@@ -120,7 +215,6 @@ namespace cppUpdatarThreadItems
         Device(IUpdater* updater);
         ~Device() override;
 
-
     private:
         IUpdater* updater_ = nullptr;
     };
@@ -139,7 +233,8 @@ namespace cppUpdatarThreadItems
             delete updater_;
             updater_ = nullptr;
         }
-        std::cout << "Device destroyed and updater stopped." << std::endl;
+
+        LOG_CONSOLE_INFO("Device destroyed and updater stopped.");
     }
 
     class IDeviceBuilder
