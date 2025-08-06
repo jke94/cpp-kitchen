@@ -176,7 +176,12 @@ int main (int argc, char* argv[])
     for (int i = 0; i < nThreads; ++i) 
     {
         auto deviceBuilder = std::make_unique<DeviceBuilder>();
-        devices.emplace_back(deviceBuilder->setPollingTimeInMs(3000).setUpdatable(new Updatable).build());
+
+        IDevice* device = deviceBuilder->setPollingTimeInMs(3000)
+                            .setUpdatable(new Updatable)
+                            .build();
+
+        devices.emplace_back(device);
     }
 
     std::cout << "Created " << devices.size() << " devices." << std::endl;
