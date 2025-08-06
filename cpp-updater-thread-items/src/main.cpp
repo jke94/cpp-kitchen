@@ -5,14 +5,12 @@
 #include <iomanip>
 #include <iostream>
 #include <mutex>
-#include <thread>
 #include <sstream>
+#include <thread>
 #include <vector>
 
 namespace cppUpdatarThreadItemsLogger
 {
-    std::mutex mutex_;
-    
     enum class LOG_LEVEL
     {
         INFO,
@@ -21,6 +19,193 @@ namespace cppUpdatarThreadItemsLogger
         CRITICAL,
         VERBOSE
     };
+
+    template <typename... Args>
+    std::string build_message(const Args&... args) 
+    {
+        std::ostringstream stream;
+        int dummy[] = {0, (stream << args, 0)...};
+        return stream.str();
+    }
+
+    std::ostream &operator<<(std::ostream &os, LOG_LEVEL level);
+    std::string currentDateTime();
+    void log(const char *file, const char *function, const int line, const std::string &message, LOG_LEVEL logLevel);
+    void logInfo(const char* file, const char* function, const int line, const std::string& message);
+
+    #define LOG_CONSOLE_INFO(...) logInfo(__FILE__, __FUNCTION__, __LINE__, build_message(__VA_ARGS__))
+
+}; // namespace cppUpdatarThreadItemsLogger
+
+
+namespace cppUpdatarThreadItems
+{
+    class IUpdatable 
+    {
+    public:
+        virtual ~IUpdatable() = default;
+        virtual void onUpdate() = 0;
+    };
+
+    class Updatable : public IUpdatable
+    {
+    public:
+        void onUpdate() override;
+    };
+
+    class IUpdater
+    {
+    public:
+        virtual ~IUpdater() = default;
+        virtual void startUpdate() = 0;
+        virtual void setUpdatable(IUpdatable* updatable) = 0;
+        virtual void stopUpdate() = 0;
+
+    protected:
+        IUpdater() = default;
+        IUpdater(const IUpdater&) = default;
+        IUpdater& operator=(const IUpdater&) = default;
+        IUpdater(IUpdater&&) = default;
+        IUpdater& operator=(IUpdater&&) = default;
+    };
+
+    class Updater final : public IUpdater, public IUpdatable
+    {
+    public:
+
+        /**
+         * @brief Constructor for Updater.
+         * @param pollingTime Time in milliseconds to wait before next update cycle.
+         * @note Default polling time is 3000 milliseconds.
+         */
+        Updater(int pollingTime);
+        ~Updater() override;
+
+        void startUpdate() override;
+        void setUpdatable(IUpdatable* updatable) override;
+        void stopUpdate() override;
+        
+        
+        void onUpdate() override;
+
+    private:
+        std::thread updateThread_;
+        std::mutex mtx_;
+        std::condition_variable cv_;
+        std::atomic<bool> running_{false};
+        std::atomic<bool> stopRequested_{false};
+
+        IUpdatable* updatable_ = nullptr;
+
+        /**
+         * @brief Time in milliseconds to wait before next update cycle in milliseconds.
+         */
+        int pollingTime_ = 3000; 
+
+        /**
+         * @brief Function that runs in a separate thread to perform updates.
+         */
+        void runUpdate();
+    };
+
+    class IDevice
+    {
+    public:
+        virtual ~IDevice() = default;
+
+    protected:
+        IDevice() = default;
+        IDevice(const IDevice&) = default;
+        IDevice& operator=(const IDevice&) = default;
+        IDevice(IDevice&&) = default;
+        IDevice& operator=(IDevice&&) = default;
+    };
+
+    class Device final : public IDevice
+    {
+    public:
+        Device(int pollingTime, IUpdater* updater);
+        ~Device() override;
+
+    private:
+        IUpdater* updater_ = nullptr;
+        IUpdatable* updatable_ = nullptr;
+        int pollingTime_;
+    };
+
+    class IDeviceBuilder
+    {
+    public:
+        virtual ~IDeviceBuilder() = default;
+        virtual IDeviceBuilder& setPollingTimeInMs(int pollingTime) = 0;
+        virtual IDeviceBuilder& setUpdatable(IUpdatable* updatable) = 0;
+        virtual IDevice* build() = 0;
+    
+    protected:
+        IDeviceBuilder() = default;
+        IDeviceBuilder(const IDeviceBuilder&) = default;
+        IDeviceBuilder& operator=(const IDeviceBuilder&) = default;
+        IDeviceBuilder(IDeviceBuilder&&) = default;
+        IDeviceBuilder& operator=(IDeviceBuilder&&) = default;            
+    };
+
+    class DeviceBuilder final : public IDeviceBuilder
+    {
+    public:
+        DeviceBuilder() = default;
+        ~DeviceBuilder() override = default;
+        IDeviceBuilder& setPollingTimeInMs(int pollingTime) override;
+        IDeviceBuilder& setUpdatable(IUpdatable* updatable) override;
+        IDevice* build() override;
+    
+    private:
+        IUpdater* updater_ = nullptr;
+        IUpdatable* updatable_ = nullptr;
+        int pollingTime_;
+    };
+
+} // nampespace cppUpdatarThreadItems
+
+using namespace cppUpdatarThreadItems;
+
+int main (int argc, char* argv[])
+{
+    std::vector<std::unique_ptr<IDevice>> devices;
+    const int nThreads = 3;
+
+    for (int i = 0; i < nThreads; ++i) 
+    {
+        auto deviceBuilder = std::make_unique<DeviceBuilder>();
+        devices.emplace_back(deviceBuilder->setPollingTimeInMs(3000).setUpdatable(new Updatable).build());
+    }
+
+    std::cout << "Created " << devices.size() << " devices." << std::endl;
+    std::this_thread::sleep_for(std::chrono::seconds(7));
+
+    return 0;
+}
+
+namespace cppUpdatarThreadItemsLogger
+{
+    std::mutex mutex_;
+
+    void log(const char *file, const char *function, const int line, const std::string &message, LOG_LEVEL logLevel)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        std::stringstream ss;
+
+        ss << "[" << currentDateTime() << "]";
+        ss << "[" << file << "|" << function << "|" << line << "]";
+        ss << " " << message;
+
+        std::cout << "[" << logLevel << "]"<< ss.str() << std::endl;
+    }
+
+    void logInfo(const char* file, const char* function, const int line, const std::string& message)
+    {
+        log(file, function, line, message, LOG_LEVEL::INFO);
+    }
 
     std::ostream &operator<<(std::ostream &os, LOG_LEVEL level)
     {
@@ -33,14 +218,6 @@ namespace cppUpdatarThreadItemsLogger
             case LOG_LEVEL::VERBOSE: return os << "VERBOSE";
             default: return os << "UNKNOWN";
         }
-    }
-
-    template <typename... Args>
-    std::string build_message(const Args&... args) 
-    {
-        std::ostringstream stream;
-        int dummy[] = {0, (stream << args, 0)...};
-        return stream.str();
     }
 
     std::string currentDateTime()
@@ -70,82 +247,18 @@ namespace cppUpdatarThreadItemsLogger
         oss << '.' << std::setw(3) << std::setfill('0') << ms.count();
     
         return oss.str();
-    }    
-
-    void log(const char *file, const char *function, const int line, const std::string &message, LOG_LEVEL logLevel)
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-
-        std::stringstream ss;
-
-        ss << "[" << currentDateTime() << "]";
-        ss << "[" << file << "|" << function << "|" << line << "]";
-        ss << " " << message;
-
-        std::cout << "[" << logLevel << "]"<< ss.str() << std::endl;
-    }
-
-    void logInfo(const char* file, const char* function, const int line, const std::string& message)
-    {
-        log(file, function, line, message, LOG_LEVEL::INFO);
-    }
-    
-    #define LOG_CONSOLE_INFO(...) logInfo(__FILE__, __FUNCTION__, __LINE__, build_message(__VA_ARGS__))
-
-}; // namespace cppUpdatarThreadItemsLogger
-
+    }     
+} // namespace cppUpdatarThreadItemsLogger
 
 namespace cppUpdatarThreadItems
 {
     using namespace cppUpdatarThreadItemsLogger;
 
-    class IUpdater
+    void Updatable::onUpdate()
     {
-    public:
-        virtual ~IUpdater() = default;
-        virtual void startUpdate() = 0;
-        virtual void stopUpdate() = 0;
-
-    protected:
-        IUpdater() = default;
-        IUpdater(const IUpdater&) = default;
-        IUpdater& operator=(const IUpdater&) = default;
-        IUpdater(IUpdater&&) = default;
-        IUpdater& operator=(IUpdater&&) = default;
-    };
-
-    class Updater final : public IUpdater
-    {
-    public:
-
-        /**
-         * @brief Constructor for Updater.
-         * @param pollingTime Time in milliseconds to wait before next update cycle.
-         * @note Default polling time is 3000 milliseconds.
-         */
-        Updater(int pollingTime);
-        ~Updater() override;
-
-        void startUpdate() override;
-        void stopUpdate() override;
-
-    private:
-        std::thread updateThread_;
-        std::mutex mtx_;
-        std::condition_variable cv_;
-        std::atomic<bool> running_{false};
-        std::atomic<bool> stopRequested_{false};
-
-        /**
-         * @brief Time in milliseconds to wait before next update cycle in milliseconds.
-         */
-        int pollingTime_ = 3000; 
-
-        /**
-         * @brief Function that runs in a separate thread to perform updates.
-         */
-        void runUpdate();
-    };
+        // Implement the update logic here.
+        LOG_CONSOLE_INFO("I am thead (", std::this_thread::get_id(), "). Performing update.");
+    }
 
     Updater::Updater(int pollingTime)
     : pollingTime_(pollingTime)
@@ -168,6 +281,11 @@ namespace cppUpdatarThreadItems
         LOG_CONSOLE_INFO("I am thead (", std::this_thread::get_id(), "). Updater thread started.");
     }
 
+    void Updater::setUpdatable(IUpdatable* updatable)
+    {
+        updatable_ = updatable;
+    }
+
     void Updater::stopUpdate()
     {
         {
@@ -187,6 +305,11 @@ namespace cppUpdatarThreadItems
         LOG_CONSOLE_INFO("I am thead (", std::this_thread::get_id(), "). Updater thread stopped.");
     }
 
+    void Updater::onUpdate()
+    {
+        LOG_CONSOLE_INFO("I am thead (", std::this_thread::get_id(), "). Performing update.");
+    }
+
     void Updater::runUpdate()
     {
         std::unique_lock<std::mutex> lock(mtx_);
@@ -196,6 +319,12 @@ namespace cppUpdatarThreadItems
             // Simulate update work
             LOG_CONSOLE_INFO("I am thead (", std::this_thread::get_id(), "). Running update with polling time: ", pollingTime_, " ms");
             lock.unlock();
+
+            if (updatable_)
+            {
+                updatable_->onUpdate();
+            }
+
             std::this_thread::sleep_for(std::chrono::milliseconds(pollingTime_));
             lock.lock();
 
@@ -213,33 +342,17 @@ namespace cppUpdatarThreadItems
     {
         stopUpdate();  // Clean shutdown
         LOG_CONSOLE_INFO("Updater destroyed.");
+
+        if (updatable_)
+        {
+            delete updatable_;
+            updatable_ = nullptr;
+        }
     }
 
-    class IDevice
-    {
-    public:
-        virtual ~IDevice() = default;
-
-    protected:
-        IDevice() = default;
-        IDevice(const IDevice&) = default;
-        IDevice& operator=(const IDevice&) = default;
-        IDevice(IDevice&&) = default;
-        IDevice& operator=(IDevice&&) = default;
-    };
-
-    class Device final : public IDevice
-    {
-    public:
-        Device(IUpdater* updater);
-        ~Device() override;
-
-    private:
-        IUpdater* updater_ = nullptr;
-    };
-
-    Device::Device(IUpdater* updater)
-    : updater_ (updater)
+    Device::Device(int pollingTime, IUpdater* updater) : 
+        pollingTime_(pollingTime), 
+        updater_ (updater)
     {
 
     }
@@ -256,66 +369,39 @@ namespace cppUpdatarThreadItems
         LOG_CONSOLE_INFO("Device destroyed and updater stopped.");
     }
 
-    class IDeviceBuilder
-    {
-    public:
-        virtual ~IDeviceBuilder() = default;
-        virtual IDeviceBuilder& setUpdaterThreadWithPollingTimeInMs(int pollingTime) = 0;
-        virtual IDevice* build() = 0;
-    
-    protected:
-        IDeviceBuilder() = default;
-        IDeviceBuilder(const IDeviceBuilder&) = default;
-        IDeviceBuilder& operator=(const IDeviceBuilder&) = default;
-        IDeviceBuilder(IDeviceBuilder&&) = default;
-        IDeviceBuilder& operator=(IDeviceBuilder&&) = default;            
-    };
-
-    class DeviceBuilder final : public IDeviceBuilder
-    {
-    public:
-        DeviceBuilder() = default;
-        ~DeviceBuilder() override = default;
-        IDeviceBuilder& setUpdaterThreadWithPollingTimeInMs(int pollingTime) override;
-        IDevice* build() override;
-    
-    private:
-        IUpdater* updater_ = nullptr;
-    };
-
     IDevice* DeviceBuilder::build()
     {
-        return new Device(updater_);
-    }
-
-    IDeviceBuilder& DeviceBuilder::setUpdaterThreadWithPollingTimeInMs(int pollingTime)
-    {
-        if (updater_ == nullptr)
+        if (pollingTime_ <= 0)
         {
-            updater_ = new Updater(pollingTime);
+            LOG_CONSOLE_INFO("Cannot build device with non-positive polling time.");
+            return nullptr; // Cannot build device with non-positive polling time.
         }
 
+        if(updatable_ == nullptr)
+        {
+            LOG_CONSOLE_INFO("Cannot build device without an updatable.");
+            return nullptr; // Cannot build device without an updater.
+        }
+
+        updater_ = new Updater(pollingTime_);
         updater_->startUpdate();
+        updater_->setUpdatable(updatable_);
+
+        return new Device(pollingTime_, updater_);
+    }
+
+    IDeviceBuilder& DeviceBuilder::setPollingTimeInMs(int pollingTime)
+    {
+        pollingTime_ = pollingTime;
 
         return *this;
     }
 
-} // nampespace cppUpdatarThreadItems
-
-using namespace cppUpdatarThreadItems;
-
-int main (int argc, char* argv[])
-{
-    std::vector<std::unique_ptr<IDevice>> devices;
-    const int nThreads = 3;
-
-    for (int i = 0; i < nThreads; ++i) 
+    IDeviceBuilder& DeviceBuilder::setUpdatable(IUpdatable* updatable)
     {
-        auto deviceBuilder = std::make_unique<DeviceBuilder>();
-        devices.emplace_back(deviceBuilder->setUpdaterThreadWithPollingTimeInMs(3000).build());
+        updatable_ = updatable;
+
+        return *this;
     }
 
-    std::this_thread::sleep_for(std::chrono::seconds(7));
-
-    return 0;
-}
+} // namespace cppUpdatarThreadItems
