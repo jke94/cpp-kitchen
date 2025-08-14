@@ -70,15 +70,14 @@ namespace testing
 
 }; // namespace testing
 
-namespace toString
+namespace str
 {
     template<class T>
-    std::ostream &operator<<(std::ostream &os, T* thing);
+    std::string to_string( T* thing);
 
-}; // namespace toString
+}; // namespace str
 
 using namespace testing;
-using namespace toString;
 
 int main()
 {
@@ -87,10 +86,10 @@ int main()
     std::shared_ptr<IThing> superThingUniquePtr = std::make_shared<SuperThing>("SUPER321");
     std::shared_ptr<IThing> hyperThingUniquePtr = std::make_shared<HyperThing>("HYPER678");
 
-    std::cout << p_thing << std::endl;
-    std::cout << thingUniquePtr.get() << std::endl;
-    std::cout << superThingUniquePtr.get() << std::endl;
-    std::cout << hyperThingUniquePtr.get() << std::endl; // NOTE: HyperThing does not implement IToString
+    std::cout << str::to_string(p_thing) << std::endl;
+    std::cout << str::to_string(thingUniquePtr.get()) << std::endl;
+    std::cout << str::to_string(superThingUniquePtr.get()) << std::endl;
+    std::cout << str::to_string(hyperThingUniquePtr.get()) << std::endl; // NOTE: HyperThing does not implement IToString
 
     delete p_thing;
 
@@ -126,24 +125,21 @@ namespace testing
 
 }; // namespace testing
 
-namespace toString
+namespace str
 {
     template<class T>
-    std::ostream &operator<<(std::ostream &os, T* thing)
+    std::string to_string(T* thing)
     {
         const IToString* item = dynamic_cast<IToString*>(thing);
 
         if(!item)
         {
             const std::string errorMsg = "[ERROR] The item does not implemented 'IToString' contract.";
-            os << errorMsg;
-            
-            return os;
+
+            return errorMsg;
         }
 
-        os << item->toString();
-
-        return os;
+        return item->toString();
     }
 
-}; // namespace toString
+}; // namespace str
