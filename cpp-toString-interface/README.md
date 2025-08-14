@@ -1,6 +1,6 @@
 # cpp-toString-interface
 
-How to use `toString` function after use `IToString` interface. This example requires `c++14` at least.
+How to use `toString` function after use `IToString` interface. This example requires `c++11` at least.
 
 ## How to build 
 

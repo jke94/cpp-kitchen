@@ -1,5 +1,5 @@
 /**
- * @file Function templates + toString interface.
+ * @file How to use `toString` function after use `IToString` interface. This example requires `c++11` at least.
  * @author Javier Carracedo (@jke94 Github)
  */
 
@@ -59,6 +59,15 @@ namespace testing
         std::string id_;
     };
 
+    class HyperThing final : public IThing
+    {
+    public:
+        HyperThing(std::string id);
+
+    private:
+        std::string id_;
+    };
+
 }; // namespace testing
 
 namespace toString
@@ -74,12 +83,14 @@ using namespace toString;
 int main()
 {
     IThing *p_thing = new Thing("QWE765");
-    std::unique_ptr<IThing> thingUniquePtr = std::make_unique<Thing>("RTE123");
-    std::unique_ptr<IThing> superThingUniquePtr = std::make_unique<SuperThing>("SUPER321");
+    std::shared_ptr<IThing> thingUniquePtr = std::make_shared<Thing>("RTE123");
+    std::shared_ptr<IThing> superThingUniquePtr = std::make_shared<SuperThing>("SUPER321");
+    std::shared_ptr<IThing> hyperThingUniquePtr = std::make_shared<HyperThing>("HYPER678");
 
+    std::cout << p_thing << std::endl;
     std::cout << thingUniquePtr.get() << std::endl;
     std::cout << superThingUniquePtr.get() << std::endl;
-    std::cout << p_thing << std::endl;
+    std::cout << hyperThingUniquePtr.get() << std::endl; // NOTE: HyperThing does not implement IToString
 
     delete p_thing;
 
@@ -106,7 +117,12 @@ namespace testing
     std::string SuperThing::toString() const
     {
         return "SuperThing(id=" + id_ + ")";
-    }    
+    }
+
+    HyperThing::HyperThing(std::string id) : id_(id)
+    {
+
+    }
 
 }; // namespace testing
 
@@ -115,11 +131,13 @@ namespace toString
     template<class T>
     std::ostream &operator<<(std::ostream &os, T* thing)
     {
-        IToString* item = dynamic_cast<IToString*>(thing);
+        const IToString* item = dynamic_cast<IToString*>(thing);
 
         if(!item)
         {
-            // TODO: Throw exception.
+            const std::string errorMsg = "[ERROR] The item does not implemented 'IToString' contract.";
+            os << errorMsg;
+            
             return os;
         }
 
