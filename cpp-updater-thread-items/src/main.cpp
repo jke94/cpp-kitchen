@@ -216,13 +216,27 @@ namespace cppUpdatarThreadItemsLogger
     {
         switch (level)
         {
-            case LOG_LEVEL::INFO: return os << "INFO";
-            case LOG_LEVEL::WARNING: return os << "WARNING";
-            case LOG_LEVEL::ERROR: return os << "ERROR";
-            case LOG_LEVEL::CRITICAL: return os << "CRITICAL";
-            case LOG_LEVEL::VERBOSE: return os << "VERBOSE";
-            default: return os << "UNKNOWN";
+            case LOG_LEVEL::INFO: 
+                os << "INFO";
+                break;
+            case LOG_LEVEL::WARNING: 
+                os << "WARNING";
+                break;
+            case LOG_LEVEL::ERROR: 
+                os << "ERROR";
+                break;
+            case LOG_LEVEL::CRITICAL: 
+                os << "CRITICAL";
+                break;
+            case LOG_LEVEL::VERBOSE: 
+                os << "VERBOSE";
+                break;
+            default:
+                os << "UNKNOWN";
+                break;
         }
+
+        return os;
     }
 
     std::string currentDateTime()
