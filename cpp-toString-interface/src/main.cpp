@@ -73,7 +73,7 @@ namespace testing
 namespace str
 {
     template<class T>
-    std::string to_string( T* thing);
+    std::string to_string(T* t);
 
 }; // namespace str
 
@@ -128,9 +128,9 @@ namespace testing
 namespace str
 {
     template<class T>
-    std::string to_string(T* thing)
+    std::string to_string(T* t)
     {
-        const IToString* item = dynamic_cast<IToString*>(thing);
+        const IToString* item = dynamic_cast<IToString*>(t);
 
         if(!item)
         {
