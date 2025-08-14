@@ -8,7 +8,7 @@
 #include <ostream>
 #include <string>
 
-namespace testing
+namespace str
 {
     class IToString
     {
@@ -24,6 +24,13 @@ namespace testing
         IToString& operator=(IToString&&) = default;        
     };
 
+    template<class T>
+    std::string to_string(T* t);
+
+}; // namespace str
+
+namespace testing
+{
     class IThing
     {
     public:
@@ -38,7 +45,7 @@ namespace testing
     };
 
     class Thing final : public IThing, 
-                        public IToString
+                        public str::IToString
     {
     public:
         Thing(std::string id);
@@ -49,7 +56,7 @@ namespace testing
     };
 
     class SuperThing final : public IThing, 
-                             public IToString
+                             public str::IToString
     {
     public:
         SuperThing(std::string id);
@@ -70,13 +77,7 @@ namespace testing
 
 }; // namespace testing
 
-namespace str
-{
-    template<class T>
-    std::string to_string(T* t);
-
-}; // namespace str
-
+using namespace str;
 using namespace testing;
 
 int main()
@@ -134,9 +135,7 @@ namespace str
 
         if(!item)
         {
-            const std::string errorMsg = "[ERROR] The item does not implemented 'IToString' contract.";
-
-            return errorMsg;
+            return "[ERROR] The item does not implemented 'IToString' contract.";
         }
 
         return item->toString();
