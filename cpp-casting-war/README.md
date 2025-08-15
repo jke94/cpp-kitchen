@@ -36,3 +36,9 @@ classDiagram
     PrimiumDevice --|> IPrimiumDevice
     UltraDevice --|> IUltraDevice
 ```
+
+## How to build
+
+```
+g++ src/main.cpp -std=c++11 -o main
+```
