@@ -1,6 +1,7 @@
 #ifndef I_MULTI_SERVICE_H
 #define I_MULTI_SERVICE_H
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
