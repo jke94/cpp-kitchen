@@ -1,9 +1,9 @@
 #ifndef MY_TYPE_TRAIT_H
 #define MY_TYPE_TRAIT_H
 
-#include <iostream>
+#include <string>
 
-namespace cppTraitsAndFunctorsApi
+namespace cppTraitsApi
 {
     /**
      * @brief Trait structure that defines a static method to process integers.
@@ -12,8 +12,9 @@ namespace cppTraitsAndFunctorsApi
     {
     public:    
         static void doSomething(int x);
+        static void doSomething(const std::string& str);
     };
     
-} // namespace cppTraitsAndFunctorsApi
+} // namespace cppTraitsApi
 
 #endif // MY_TYPE_TRAIT_H

@@ -1,7 +1,7 @@
 #ifndef MY_TEMPLATE_H
 #define MY_TEMPLATE_H
 
-namespace cppTraitsAndFunctorsApi
+namespace cppTraitsApi
 {
     /**
      * @brief Generic template class that uses traits to perform operations.
@@ -19,6 +19,6 @@ namespace cppTraitsAndFunctorsApi
         }
     };
 
-} // namespace cppTraitsAndFunctorsApi
+} // namespace cppTraitsApi
 
 #endif // MY_TEMPLATE_H
