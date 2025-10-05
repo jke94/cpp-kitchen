@@ -48,12 +48,12 @@ namespace asynclog
 namespace asynclog
 {
     /**
-     * @brief Asynchronous logger implementation with joinable thread and thread-safe buffer.
+     * @brief Asynchronous logger implementation with joinable thread and thread-safe buffer and batch writing.
      */
     class Logger final : public ILogger 
     {
     public:
-        Logger();
+        Logger(size_t batchSize);
         ~Logger() override;
 
         void init(const std::string& filename) override;
@@ -73,6 +73,7 @@ namespace asynclog
         std::condition_variable cond_var_;
         std::atomic<bool> running_;
         std::thread writer_thread_;
+        size_t batch_size_;
     };
 
 } // namespace asynclog
@@ -82,22 +83,22 @@ using namespace asynclog;
 int main()
 {
     // Dependency injection via interface.
-    std::shared_ptr<ILogger> logger = std::make_shared<Logger>();
+    std::shared_ptr<ILogger> logger = std::make_shared<Logger>(50); // Batch size of 50 messages.
     logger->init("app.log");
 
     // Number of threads and messages per thread definition.
     // Key: thread name, Value: number of messages
     std::map<std::string, int> threadConfig = {
-        {"T1", 50},
-        {"T2", 100},
-        {"T3", 25},
-        {"T4", 75},
-        {"T5", 10},
-        {"T6", 200},
-        {"T7", 150},
-        {"T8", 30},
-        {"T9", 60},
-        {"T10", 590}
+        {"T1", 5},
+        {"T2", 1},
+        {"T3", 6},
+        {"T4", 7},
+        {"T5", 1},
+        {"T6", 2},
+        {"T7", 1},
+        {"T8", 3},
+        {"T9", 6},
+        {"T10", 5}
     };
 
     std::vector<std::thread> threads;
@@ -127,9 +128,6 @@ int main()
         }
     }
 
-    // Wait a bit to ensure all messages are processed.
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
     // Finalize the logger to ensure all messages are flushed.
     logger->finalize();
 
@@ -140,19 +138,25 @@ int main()
 
 namespace asynclog
 {
-    Logger::Logger() : running_(false) 
+    Logger::Logger(size_t batchSize) 
+        : running_(false),
+        batch_size_(batchSize) // Default batch size to 100 messages.
     {
 
     }
 
     Logger::~Logger() 
     {
-        // NOTE: Close the logger if the user forgot to do it.
-        finalize();
+        if (running_)
+        {
+            // NOTE: Close the logger if the user forgot to do it.
+            finalize();
+        } 
     }
 
     void Logger::init(const std::string& filename) 
     {
+        std::lock_guard<std::mutex> lock(mutex_);
         if(running_)
         {
             // Avoid re-initialization if already running.
@@ -208,10 +212,9 @@ namespace asynclog
     void Logger::writerLoop() 
     {
         std::ofstream file(filename_.c_str(), std::ios::app);
-
         if (!file.is_open()) 
         {
-            std::cerr << "[Logger] Cannot open log file: " << filename_ << std::endl;
+            std::cerr << "The log file could not be opened: " << filename_ << std::endl;
             running_ = false;
             return;
         }
@@ -224,16 +227,28 @@ namespace asynclog
                 return !buffer_.empty() || !running_;
             });
 
-            // If there are messages in the buffer, write them to the file.
-            while (!buffer_.empty()) 
+            std::string batch;
+            size_t batchCount = 0;
+
+            // Extrae mensajes del buffer (bloque protegido)
+            while (!buffer_.empty() && batchCount < batch_size_) 
             {
-                file << buffer_.front() << std::endl;
+                batch += buffer_.front();
+                batch += '\n';
                 buffer_.pop();
+                ++batchCount;
             }
 
-            file.flush();
+            lock.unlock(); // liberamos el lock antes del I/O
 
-            // If finalize has been requested and the buffer is empty, we exit.
+            // Escritura agrupada
+            if (!batch.empty()) 
+            {
+                file << batch;
+                file.flush(); // fuerza escritura inmediata
+            }
+
+            // Finalizar si se solicitó detener y ya no hay mensajes
             if (!running_ && buffer_.empty()) 
             {
                 break;
