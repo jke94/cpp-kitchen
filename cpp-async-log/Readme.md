@@ -28,6 +28,12 @@ Asynchronous C++ logger implementation.
 | 20 | 🧩 **Error Propagation**         | Main function now checks `LogResult` values for initialization and finalization.                                                                                     | ✅ Implemented                |
 | 21 | 💡 **Thread Safety Maintained**  | Mutex and condition variable usage remain unchanged and correct.                                                                                                    | ✅ Verified                   |
 
+## ⚙️ How to compile
+
+```
+g++ -std=c++11 src/main.cpp -o app
+```
+
 ## ✅ Example Usage
 
 Below is a minimal example demonstrating how to initialize, use, and finalize the asynchronous logger
@@ -104,3 +110,4 @@ LogResult result = logger->init("app.log");
 if (result != LogResult::Success) {
     std::cerr << "Logger init failed, code = " << static_cast<int>(result) << std::endl;
 }
+```
