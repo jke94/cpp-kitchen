@@ -13,6 +13,18 @@
 namespace asynclog
 {
     /**
+     * @brief Log result enumeration for operation status.
+     */
+    enum class LogResult
+    {
+        WTF = -1,
+        Success,
+        FileOpenError,
+        NotInitialized,
+        AlreadyInitialized
+    };
+
+    /**
      * @brief Abstract logger interface
      */
     class ILogger 
@@ -23,7 +35,7 @@ namespace asynclog
         /**
          * @brief Logger initialization with a filename.
          */
-        virtual void init(const std::string& filename) = 0;
+        virtual LogResult init(const std::string& filename) = 0;
 
         /**
          * @brief Logs a message.
@@ -34,7 +46,7 @@ namespace asynclog
         /**
          * @brief Finalizes the logger, ensuring all messages are processed.
          */
-        virtual void finalize() = 0;
+        virtual LogResult finalize() = 0;
 
     protected:
         ILogger() = default;
@@ -48,23 +60,20 @@ namespace asynclog
 namespace asynclog
 {
     /**
-     * @brief Asynchronous logger implementation with joinable thread and thread-safe buffer and batch writing.
+     * @brief Asynchronous logger implementation with joinable thread,
+     * thread-safe buffer and batch writing.
      */
     class Logger final : public ILogger 
     {
     public:
-        Logger(size_t batchSize);
+        explicit Logger(size_t batchSize);
         ~Logger() override;
 
-        void init(const std::string& filename) override;
+        LogResult init(const std::string& filename) override;
         void log(const std::string& message) override;
-        void finalize() override;
+        LogResult finalize() override;
 
     private:
-
-        /**
-         * @brief Writer thread function that processes log messages from the buffer.
-         */
         void writerLoop();
 
         std::string filename_;
@@ -82,29 +91,36 @@ using namespace asynclog;
 
 int main()
 {
-    // Dependency injection via interface.
-    std::shared_ptr<ILogger> logger = std::make_shared<Logger>(50); // Batch size of 50 messages.
-    logger->init("app.log");
+    std::shared_ptr<ILogger> logger = std::make_shared<Logger>(50);
 
-    // Number of threads and messages per thread definition.
-    // Key: thread name, Value: number of messages
+    const LogResult initResult = logger->init("app.log");
+
+    if (initResult != LogResult::Success)
+    {
+        std::cerr << "Logger initialization failed! Return code: " << static_cast<int>(initResult) << std::endl;
+        return -1;
+    }
+
+    // Thread configuration
     std::map<std::string, int> threadConfig = {
-        {"T1", 5},
-        {"T2", 1},
-        {"T3", 6},
-        {"T4", 7},
-        {"T5", 1},
-        {"T6", 2},
-        {"T7", 1},
-        {"T8", 3},
-        {"T9", 6},
-        {"T10", 5}
+        {"T1", 6}, 
+        {"T2", 87}, 
+        {"T3", 12}, 
+        {"T4", 5},
+        {"T5", 17}, 
+        {"T6", 2}, 
+        {"T7", 11}, 
+        {"T8", 30},
+        {"T9", 67}, 
+        {"T10", 5}, 
+        {"T11", 9}, 
+        {"T12", 15}
     };
 
     std::vector<std::thread> threads;
     threads.reserve(threadConfig.size());
 
-    // Threads launch according to configuration
+    // Launch threads
     for (const auto& entry : threadConfig)
     {
         const std::string& threadName = entry.first;
@@ -114,12 +130,12 @@ int main()
         {
             for (int i = 0; i < messageCount; ++i)
             {
-                logger->log("[" + threadName + "] Mensaje número " + std::to_string(i));
+                logger->log("[" + threadName + "] Message #" + std::to_string(i));
             }
         });
     }
 
-    // Wait for all threads to finish
+    // Wait for all threads
     for (auto& t : threads)
     {
         if (t.joinable())
@@ -127,55 +143,63 @@ int main()
             t.join();
         }
     }
+        
+    const LogResult finalizeResult = logger->finalize();
 
-    // Finalize the logger to ensure all messages are flushed.
-    logger->finalize();
+    if (finalizeResult != LogResult::Success)
+    {
+        std::cerr << "Logger finalization failed! Return code: " << static_cast<int>(finalizeResult) << std::endl;
+        return -1;
+    }
 
     std::cout << "All messages have been logged successfully." << std::endl;
-
     return 0;
 }
 
 namespace asynclog
 {
-    Logger::Logger(size_t batchSize) 
-        : running_(false),
-        batch_size_(batchSize) // Default batch size to 100 messages.
+    Logger::Logger(size_t batchSize)
+        : running_(false), batch_size_(batchSize)
     {
-
     }
 
-    Logger::~Logger() 
+    Logger::~Logger()
     {
         if (running_)
         {
-            // NOTE: Close the logger if the user forgot to do it.
             finalize();
-        } 
+        }
     }
 
-    void Logger::init(const std::string& filename) 
+    LogResult Logger::init(const std::string& filename)
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if(running_)
+        if (running_)
         {
-            // Avoid re-initialization if already running.
-            std::cerr << "[Logger] Already initialized with file: " << filename_ << std::endl;
-            return;
+            std::cerr << "[Logger] Already initialized: " << filename_ << std::endl;
+            return LogResult::AlreadyInitialized;
         }
 
         filename_ = filename;
-        running_ = true;
 
-        // Runs the writer thread.
+        // Check if file can be opened before starting the thread
+        std::ofstream test(filename_.c_str(), std::ios::app);
+        if (!test.is_open())
+        {
+            std::cerr << "[Logger] Could not open file: " << filename_ << std::endl;
+            return LogResult::FileOpenError;
+        }
+
+        running_ = true;
         writer_thread_ = std::thread(&Logger::writerLoop, this);
+
+        return LogResult::Success;
     }
 
-    void Logger::log(const std::string& message) 
+    void Logger::log(const std::string& message)
     {
-        if(!running_)
+        if (!running_)
         {
-            // Ignore if not running.
             return;
         }
 
@@ -184,37 +208,37 @@ namespace asynclog
             buffer_.push(message);
         }
 
-        // Notify the writer thread that a new message is available.
         cond_var_.notify_one();
     }
 
-    void Logger::finalize() 
+    LogResult Logger::finalize()
     {
-        if(!running_)
+        if (!running_)
         {
-            // Ignore if not running.
-            return;
+            return LogResult::NotInitialized;
         }
 
         {
             std::lock_guard<std::mutex> lock(mutex_);
             running_ = false;
         }
+
         cond_var_.notify_one();
 
-        // Wait for the writer thread to finish.
-        if (writer_thread_.joinable()) 
+        if (writer_thread_.joinable())
         {
             writer_thread_.join();
         }
+
+        return LogResult::Success;
     }
 
-    void Logger::writerLoop() 
+    void Logger::writerLoop()
     {
         std::ofstream file(filename_.c_str(), std::ios::app);
-        if (!file.is_open()) 
+        if (!file.is_open())
         {
-            std::cerr << "The log file could not be opened: " << filename_ << std::endl;
+            std::cerr << "[Logger] Writer thread failed to open file: " << filename_ << std::endl;
             running_ = false;
             return;
         }
@@ -222,7 +246,7 @@ namespace asynclog
         while (true)
         {
             std::unique_lock<std::mutex> lock(mutex_);
-            cond_var_.wait(lock, [this]() 
+            cond_var_.wait(lock, [this]()
             {
                 return !buffer_.empty() || !running_;
             });
@@ -230,8 +254,7 @@ namespace asynclog
             std::string batch;
             size_t batchCount = 0;
 
-            // Extrae mensajes del buffer (bloque protegido)
-            while (!buffer_.empty() && batchCount < batch_size_) 
+            while (!buffer_.empty() && batchCount < batch_size_)
             {
                 batch += buffer_.front();
                 batch += '\n';
@@ -239,17 +262,15 @@ namespace asynclog
                 ++batchCount;
             }
 
-            lock.unlock(); // liberamos el lock antes del I/O
+            lock.unlock();
 
-            // Escritura agrupada
-            if (!batch.empty()) 
+            if (!batch.empty())
             {
                 file << batch;
-                file.flush(); // fuerza escritura inmediata
+                file.flush();
             }
 
-            // Finalizar si se solicitó detener y ya no hay mensajes
-            if (!running_ && buffer_.empty()) 
+            if (!running_ && buffer_.empty())
             {
                 break;
             }
