@@ -10,13 +10,14 @@ namespace publicApi
         FAILURE_HANLDER_IS_NOT_NULL = 2,
     };
 
-    typedef void* HANDLER;
+    using HANDLER = void*;
+    using WidgetCallback = void (*)();
 
     void openHandler(HANDLER& handler, Result& result);
     
     void closeHandler(HANDLER& handler, Result& result);
 
-    void setWidgetNotificationCallback(HANDLER handler, Result& result, void (*callback)());
+    void setWidgetNotificationCallback(HANDLER handler, Result& result, WidgetCallback callback);
     
     void startWidget(HANDLER handler, Result& result);
 

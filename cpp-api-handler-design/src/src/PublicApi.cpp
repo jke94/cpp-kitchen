@@ -1,5 +1,4 @@
-#include "PublicApi.h"
-#include "Widget.h"
+#include "PublicApiWrapper.h"
 
 using namespace internalApi;
 
@@ -7,77 +6,26 @@ namespace publicApi
 {
     void openHandler(HANDLER& handler, Result& result)
     {
-        if(handler != nullptr)
-        {
-            result = Result::FAILURE_HANLDER_IS_NOT_NULL;
-            return;
-        }
-
-        Widget* widget = new Widget();
-
-        if(!widget)
-        {
-            result = Result::FAILURE;
-            return;
-        }
-
-        handler = reinterpret_cast<HANDLER>(widget);
-        result = Result::SUCCESS;
+        PublicApiWrapper apiWrapper;
+        apiWrapper.openHandler(handler, result);
     }
 
     void closeHandler(HANDLER& handler, Result& result)
     {
-        if(handler == nullptr)
-        {
-            result = Result::FAILURE;
-            return;
-        }
-        
-        IWidget* widget = reinterpret_cast<Widget*>(handler);
-        delete widget;
-
-        handler = nullptr;
-        result = Result::SUCCESS;
+        PublicApiWrapper apiWrapper;
+        apiWrapper.closeHandler(handler, result);
     }
 
-    void setWidgetNotificationCallback(HANDLER handler, Result& result, void (*callback)())
+    void setWidgetNotificationCallback(HANDLER handler, Result& result, WidgetCallback callback)
     {
-        if (handler == nullptr)
-        {
-            result = Result::FAILURE;
-            return;
-        }
-
-        IWidget* widget = reinterpret_cast<Widget*>(handler);
-
-        if (!widget)
-        {
-            result = Result::FAILURE;
-            return;
-        }
-
-        widget->setNotificationCallback(callback);
-        result = Result::SUCCESS;
+        PublicApiWrapper apiWrapper;
+        apiWrapper.setWidgetNotificationCallback(handler, result, callback);
     }
 
     void startWidget(HANDLER handler, Result& result)
     {
-        if(handler == nullptr)
-        {
-            result = Result::FAILURE;
-            return;
-        }
-
-        IWidget* widget = reinterpret_cast<Widget*>(handler);
-        
-        if(!widget)
-        {
-            result = Result::FAILURE;
-            return;
-        }
-
-        widget->start();
-        result = Result::SUCCESS;
+        PublicApiWrapper apiWrapper;
+        apiWrapper.startWidget(handler, result);
     }
 
 } // namespace apiHandlerDesign
