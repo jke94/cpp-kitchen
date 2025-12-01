@@ -13,6 +13,8 @@ namespace internalApi
 
     protected:
         IWidget() = default;
+        IWidget(const IWidget&) = delete;
+        IWidget& operator=(const IWidget&) = delete;
     };
 
 } // namespace internalApi
