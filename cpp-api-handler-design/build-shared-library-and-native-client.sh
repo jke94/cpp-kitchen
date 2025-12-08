@@ -2,11 +2,12 @@
 
 # Generate API shared library based on handler pattern.
 g++  -fPIC \
-    src/exampleApiLib/src/*.cpp \
+    -shared \
     -std=c++17 \
+    src/exampleApiLib/src/*.cpp \
     -Isrc/exampleApiLib/api \
     -Isrc/exampleApiLib/include \
-    -shared -o exampleApiLib.so
+    -o exampleApiLib.so
 
 # Generate main application that uses the API shared library.
 g++ -fPIC \
@@ -16,4 +17,4 @@ g++ -fPIC \
     -L. \
     -Wl,-rpath=. \
     -l:exampleApiLib.so \
-    -o main
+    -o cpp-native-client

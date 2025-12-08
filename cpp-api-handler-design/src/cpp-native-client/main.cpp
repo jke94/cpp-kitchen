@@ -10,15 +10,13 @@ static std::mutex g_cv_m;
 static std::condition_variable g_cv;
 static bool g_notified = false;
 
-void notifyCallback(HANDLER handler)
+namespace exampleClientHelper
 {
-    std::cout << "Notify callback called! From handler " << handler << std::endl;
-    {
-        std::lock_guard<std::mutex> lk(g_cv_m);
-        g_notified = true;
-    }
-    g_cv.notify_one();
-}
+    void OnNotifyCallback(HANDLER handler);
+
+} // namespace exampleClientHelper
+
+using namespace exampleClientHelper;
 
 int main(int argc, char* argv[])
 {
@@ -35,7 +33,7 @@ int main(int argc, char* argv[])
 
     std::cout << "Handler opened successfully! Handler: " << handler << ". Result: " << static_cast<int>(result) << std::endl;
 
-    setWidgetNotificationCallback(handler, result, notifyCallback);
+    setWidgetNotificationCallback(handler, result, OnNotifyCallback);
 
     startWidget(handler, result);
 
@@ -61,3 +59,18 @@ int main(int argc, char* argv[])
 
     return 0;
 }
+
+namespace exampleClientHelper
+{
+
+    void OnNotifyCallback(HANDLER handler)
+    {
+        std::cout << "Notify callback called! From handler " << handler << std::endl;
+        {
+            std::lock_guard<std::mutex> lk(g_cv_m);
+            g_notified = true;
+        }
+        g_cv.notify_one();
+    }
+
+} // namespace exampleClientHelper
