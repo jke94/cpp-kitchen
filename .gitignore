@@ -87,3 +87,6 @@ cpp-detached-logger/cpp-detached-logger
 cpp-IoC-and-DI/source-code-with-IoC-and-DI
 cpp-IoC-and-DI/source-code-with-IoC-and-DI-unit-tests
 cpp-IoC-and-DI/source-code-without-IoC-and-DI
+
+# cpp-async-log
+cpp-async-log/*.log

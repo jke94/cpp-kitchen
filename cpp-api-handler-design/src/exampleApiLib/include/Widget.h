@@ -11,12 +11,12 @@ namespace internalApi
         Widget() = default;
         ~Widget() override = default;
 
-        void setNotificationCallback(void (*callback)()) override;
+        void setNotificationCallback(void (*callback)(void*)) override;
         void notifyWakeUp() override;
         void start() override;
 
     private:
-        void (*m_callback)() = nullptr;
+        void (*m_callback)(void*) = nullptr;
     };
 
 } // namespace internalApi

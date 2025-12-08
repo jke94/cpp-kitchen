@@ -6,30 +6,26 @@
 
 #include "PublicApi.h"
 
-using namespace publicApi;
-
 static std::mutex g_cv_m;
 static std::condition_variable g_cv;
 static bool g_notified = false;
 
-void notifyCallback()
+namespace exampleClientHelper
 {
-    std::cout << "Notify callback called!" << std::endl;
-    {
-        std::lock_guard<std::mutex> lk(g_cv_m);
-        g_notified = true;
-    }
-    g_cv.notify_one();
-}
+    void OnNotifyCallback(HANDLER handler);
+
+} // namespace exampleClientHelper
+
+using namespace exampleClientHelper;
 
 int main(int argc, char* argv[])
 {
-    HANDLER handler = nullptr;
+    HANDLER handler;
     Result result;
 
     openHandler(handler, result);
 
-    if(!handler)
+    if(!handler || result != Result::SUCCESS)
     {
         std::cerr << "Failed to open handler. " << "Result: " << static_cast<int>(result) << std::endl;
         return -1;
@@ -37,7 +33,7 @@ int main(int argc, char* argv[])
 
     std::cout << "Handler opened successfully! Handler: " << handler << ". Result: " << static_cast<int>(result) << std::endl;
 
-    setWidgetNotificationCallback(handler, result, notifyCallback);
+    setWidgetNotificationCallback(handler, result, OnNotifyCallback);
 
     startWidget(handler, result);
 
@@ -49,21 +45,32 @@ int main(int argc, char* argv[])
         {
             std::cerr << "Timeout waiting for callback." << std::endl;
         }
-        else
-        {
-            std::cout << "Callback received." << std::endl;
-        }
     }
 
     closeHandler(handler, result);
 
     if(handler != nullptr)
     {
-        std::cerr << "Failed to close handler. " << handler << "Result: " << static_cast<int>(result) << std::endl;
+        std::cerr << "Failed closing handler: " << handler << "Result: " << static_cast<int>(result) << std::endl;
         return -1;
     }
     
-    std::cout << "Handler closed successfully! Handler: " << handler << ". Result: " << static_cast<int>(result) << std::endl;
+    std::cout << "Handler closed successfully. Result: " << static_cast<int>(result) << std::endl;
 
     return 0;
 }
+
+namespace exampleClientHelper
+{
+
+    void OnNotifyCallback(HANDLER handler)
+    {
+        std::cout << "Notify callback called! From handler " << handler << std::endl;
+        {
+            std::lock_guard<std::mutex> lk(g_cv_m);
+            g_notified = true;
+        }
+        g_cv.notify_one();
+    }
+
+} // namespace exampleClientHelper

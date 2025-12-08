@@ -7,7 +7,7 @@ namespace internalApi
     {
     public:
         virtual ~IWidget() = default;
-        virtual void setNotificationCallback(void (*callback)()) = 0;
+        virtual void setNotificationCallback(void (*callback)(void*)) = 0;
         virtual void notifyWakeUp() = 0;
         virtual void start() = 0;
 
