@@ -6,8 +6,6 @@
 
 #include "PublicApi.h"
 
-using namespace publicApi;
-
 static std::mutex g_cv_m;
 static std::condition_variable g_cv;
 static bool g_notified = false;
@@ -24,12 +22,12 @@ void notifyCallback()
 
 int main(int argc, char* argv[])
 {
-    HANDLER handler = nullptr;
+    HANDLER handler;
     Result result;
 
     openHandler(handler, result);
 
-    if(!handler)
+    if(!handler || result != Result::SUCCESS)
     {
         std::cerr << "Failed to open handler. " << "Result: " << static_cast<int>(result) << std::endl;
         return -1;

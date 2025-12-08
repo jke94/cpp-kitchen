@@ -8,10 +8,10 @@ namespace internalApi
     class PublicApiWrapper final : public IPublicApiWrapper
     {
     public:
-        void openHandler(publicApi::HANDLER& handler, publicApi::Result& result) override;
-        void closeHandler(publicApi::HANDLER& handler, publicApi::Result& result) override;
-        void setWidgetNotificationCallback(publicApi::HANDLER handler, publicApi::Result& result, publicApi::WidgetCallback callback) override;
-        void startWidget(publicApi::HANDLER handler, publicApi::Result& result) override;
+        void openHandler(HANDLER& handler, Result& result) override;
+        void closeHandler(HANDLER& handler, Result& result) override;
+        void setWidgetNotificationCallback(HANDLER& handler, Result& result, WidgetCallback callback) override;
+        void startWidget(HANDLER& handler, Result& result) override;
     };
 } // namespace publicApi
 

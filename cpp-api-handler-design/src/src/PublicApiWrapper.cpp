@@ -2,18 +2,10 @@
 #include "PublicApi.h"
 #include "Widget.h"
 
-using namespace publicApi;
-
 namespace internalApi
 {
     void PublicApiWrapper::openHandler(HANDLER& handler, Result& result)
     {
-        if(handler != nullptr)
-        {
-            result = Result::FAILURE_HANLDER_IS_NOT_NULL;
-            return;
-        }
-
         Widget* widget = new Widget();
 
         if(!widget)
@@ -41,7 +33,7 @@ namespace internalApi
         result = Result::SUCCESS;
     }
 
-    void PublicApiWrapper::setWidgetNotificationCallback(HANDLER handler, Result& result, WidgetCallback callback)
+    void PublicApiWrapper::setWidgetNotificationCallback(HANDLER& handler, Result& result, WidgetCallback callback)
     {
         if (handler == nullptr)
         {
@@ -61,7 +53,7 @@ namespace internalApi
         result = Result::SUCCESS;
     }
 
-    void PublicApiWrapper::startWidget(HANDLER handler, Result& result)
+    void PublicApiWrapper::startWidget(HANDLER& handler, Result& result)
     {
         if(handler == nullptr)
         {

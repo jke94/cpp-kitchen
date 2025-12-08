@@ -1,16 +1,7 @@
 #ifndef I_PUBLIC_API_WRAPPER_H
 #define I_PUBLIC_API_WRAPPER_H
 
-/**
- * @brief Foward declarations for publicApi types to avoid circular dependency.
- */
-namespace publicApi
-{
-    enum class Result : int;
-    using HANDLER = void*;
-    using WidgetCallback = void (*)();
-
-}; // namespace publicApi
+#include "PublicApi.h"
 
 namespace internalApi
 {
@@ -21,10 +12,10 @@ namespace internalApi
     {
     public:
         virtual ~IPublicApiWrapper() = default;
-        virtual void openHandler(publicApi::HANDLER& handler, publicApi::Result& result) = 0;
-        virtual void closeHandler(publicApi::HANDLER& handler, publicApi::Result& result) = 0;
-        virtual void setWidgetNotificationCallback(publicApi::HANDLER handler, publicApi::Result& result, publicApi::WidgetCallback callback) = 0;
-        virtual void startWidget(publicApi::HANDLER handler, publicApi::Result& result) = 0;
+        virtual void openHandler(HANDLER& handler, Result& result) = 0;
+        virtual void closeHandler(HANDLER& handler, Result& result) = 0;
+        virtual void setWidgetNotificationCallback(HANDLER& handler, Result& result, WidgetCallback callback) = 0;
+        virtual void startWidget(HANDLER& handler, Result& result) = 0;
 
     protected:
         IPublicApiWrapper() = default;
