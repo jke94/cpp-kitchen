@@ -12,7 +12,7 @@ static bool g_notified = false;
 
 void notifyCallback(HANDLER handler)
 {
-    std::cout << "Notify callback called! From: " << handler << std::endl;
+    std::cout << "Notify callback called! From handler " << handler << std::endl;
     {
         std::lock_guard<std::mutex> lk(g_cv_m);
         g_notified = true;
@@ -47,21 +47,17 @@ int main(int argc, char* argv[])
         {
             std::cerr << "Timeout waiting for callback." << std::endl;
         }
-        else
-        {
-            std::cout << "Callback received." << std::endl;
-        }
     }
 
     closeHandler(handler, result);
 
     if(handler != nullptr)
     {
-        std::cerr << "Failed to close handler. " << handler << "Result: " << static_cast<int>(result) << std::endl;
+        std::cerr << "Failed closing handler: " << handler << "Result: " << static_cast<int>(result) << std::endl;
         return -1;
     }
     
-    std::cout << "Handler closed successfully! Handler: " << handler << ". Result: " << static_cast<int>(result) << std::endl;
+    std::cout << "Handler closed successfully. Result: " << static_cast<int>(result) << std::endl;
 
     return 0;
 }
