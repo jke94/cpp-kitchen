@@ -14,7 +14,7 @@ enum Result
 };
 
 using HANDLER = void*;
-using WidgetCallback = void (*)();
+using WidgetCallback = void (*)(HANDLER);
 
 API_EXPORT void openHandler(HANDLER& handler, Result& result);
 

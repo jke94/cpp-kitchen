@@ -10,9 +10,9 @@ static std::mutex g_cv_m;
 static std::condition_variable g_cv;
 static bool g_notified = false;
 
-void notifyCallback()
+void notifyCallback(HANDLER handler)
 {
-    std::cout << "Notify callback called!" << std::endl;
+    std::cout << "Notify callback called! From: " << handler << std::endl;
     {
         std::lock_guard<std::mutex> lk(g_cv_m);
         g_notified = true;
