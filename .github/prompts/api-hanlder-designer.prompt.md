@@ -9,14 +9,14 @@ Define una API en C++ para construir una librería con las siguientes condicione
 
 ## API Arquitectura
 
-- Diseño de definición que permita P/Invoke desde C#
+- Diseño de definición que permita P/Invoke desde C#.
 - Sin STL en la frontera ABI.
-- Diseño basado en handler (`using Handler = void*`).
+- Diseño basado en handler (`using Handler = void*`): puntero opaco.
 - No quiero utilizar JSON o XML para intercambiar información. Se utilizará un diseño de structs o enumerados.
-- La API permitirá obtener información através del handler.
-- La API permitirá subscribirse a a eventos de la librería a través del handler.
-- Cada handler, internamente tendrá asociado una implementación de una clase. La cual, permitirá acceder a los datos internamente.
-- TODAS las funciones de la API devuelven `void`. El valor de finalización de la función se pasa por referencia y será un enumerado con estados. Ejempl:
+- La API permitirá obtener información através del `Handler`.
+- La API permitirá subscribirse a a eventos de la librería a través del `Handler`.
+- Cada `Handler`, internamente tendrá asociado una implementación de una clase. La cual, permitirá acceder a los datos internamente.
+- TODAS las funciones de la API devuelven `void`. El valor de devolucion de la función se pasa por referencia y será un enumerado con estados. Ejemplo:
 
 ```cpp
 enum class
@@ -26,9 +26,7 @@ enum class
 };
 ```
 
-- Para evitar romper ABI cuando la librería crezca, añadir desde el inicio:
-
-- TODOS los structs públicos han de comenzar con `StructSize`:
+- Para evitar romper ABI cuando la librería crezca, añadir desde el inicio un campo `StructSize` en todos los structs públicos. Esto permitirá extender estructuras en versiones futuras sin romper binarios existentes (TODOS los structs públicos han de comenzar con `StructSize`). Ejemplo:
 
 ```cpp
 struct DeviceInfo
