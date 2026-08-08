@@ -15,7 +15,7 @@
 #include <vector>
 
 /**
- * @brief TaskEngine API definition
+ * @brief Engine API definition
  *
  * Contiene únicamente las clases e interfaces mínimas que un cliente
  * necesita para consumir la API.
@@ -127,24 +127,24 @@ namespace taskEngineApi
     // Implementación concreta (declaración)
     // ============================================================
 
-    class TaskEngine : public ITaskEngine
+    class Engine : public ITaskEngine
     {
     public:
         /**
          * @param numThreads         Número de worker threads (> 0)
          * @param exceptionHandler   Handler de excepciones (obligatorio, DI)
          */
-        explicit TaskEngine(
+        explicit Engine(
             std::size_t numThreads,
             std::shared_ptr<IExceptionHandler> exceptionHandler
         );
 
-        ~TaskEngine() override;
+        ~Engine() override;
 
-        TaskEngine(const TaskEngine&) = delete;
-        TaskEngine& operator=(const TaskEngine&) = delete;
-        TaskEngine(TaskEngine&&) = delete;
-        TaskEngine& operator=(TaskEngine&&) = delete;
+        Engine(const Engine&) = delete;
+        Engine& operator=(const Engine&) = delete;
+        Engine(Engine&&) = delete;
+        Engine& operator=(Engine&&) = delete;
 
         void Submit(std::function<void()> task) override;
 
@@ -210,18 +210,6 @@ namespace taskEngineApi
 
 } // namespace taskEngineApi
 
-// ============================================================
-// Implementaciones de la API (fuera de la zona de definición)
-// ============================================================
-namespace taskEngineApi
-{
-    void NullExceptionHandler::OnException(
-        std::exception_ptr /*eptr*/,
-        const std::string& /*context*/
-    ) noexcept
-    {
-    }
-}
 namespace taskEngineClient
 {
     /**
@@ -262,7 +250,7 @@ int main(int argc, char* argv[])
 
     // El número de threads y el handler se inyectan por constructor
     // (sin parámetros por defecto: el cliente debe decidir explícitamente)
-    TaskEngine engine(NUM_THREADS, exceptionHandler);
+    Engine engine(NUM_THREADS, exceptionHandler);
 
     std::cout << "TaskEngine started with " << engine.GetThreadCount()
               << " worker threads\n\n";
@@ -328,7 +316,7 @@ int main(int argc, char* argv[])
 // ============================================================
 namespace taskEngineApi
 {
-    TaskEngine::TaskEngine(
+    Engine::Engine(
         std::size_t numThreads,
         std::shared_ptr<IExceptionHandler> exceptionHandler
     )
@@ -361,12 +349,12 @@ namespace taskEngineApi
         }
     }
 
-    TaskEngine::~TaskEngine()
+    Engine::~Engine()
     {
         Stop();
     }
 
-    void TaskEngine::Submit(std::function<void()> task)
+    void Engine::Submit(std::function<void()> task)
     {
         // Rechazar tareas vacías → evita std::bad_function_call en el worker
         if (!task)
@@ -388,7 +376,7 @@ namespace taskEngineApi
         cv.notify_one();
     }
 
-    void TaskEngine::WaitForIdle()
+    void Engine::WaitForIdle()
     {
         std::unique_lock<std::mutex> lock(mutex);
         idleCv.wait(lock, [this] {
@@ -396,7 +384,7 @@ namespace taskEngineApi
         });
     }
 
-    void TaskEngine::Stop()
+    void Engine::Stop()
     {
         {
             std::lock_guard<std::mutex> lock(mutex);
@@ -419,25 +407,25 @@ namespace taskEngineApi
         workers.clear();
     }
 
-    std::size_t TaskEngine::GetThreadCount() const
+    std::size_t Engine::GetThreadCount() const
     {
         // Inmutable → sin data race con Stop()
         return threadCount;
     }
 
-    std::size_t TaskEngine::GetPendingTaskCount() const
+    std::size_t Engine::GetPendingTaskCount() const
     {
         std::lock_guard<std::mutex> lock(mutex);
         return pendingTasks;
     }
 
-    bool TaskEngine::IsRunning() const
+    bool Engine::IsRunning() const
     {
         // Snapshot. Ver documentación de la interface.
         return !stopFlag.load(std::memory_order_acquire);
     }
 
-    TaskMetrics TaskEngine::GetMetrics() const
+    TaskMetrics Engine::GetMetrics() const
     {
         std::lock_guard<std::mutex> lock(mutex);
 
@@ -459,14 +447,14 @@ namespace taskEngineApi
         return m;
     }
 
-    void TaskEngine::ResetMetrics()
+    void Engine::ResetMetrics()
     {
         std::lock_guard<std::mutex> lock(mutex);
         metrics = TaskMetrics{};
         metrics.startTime = std::chrono::steady_clock::now();
     }
 
-    void TaskEngine::WorkerLoop()
+    void Engine::WorkerLoop()
     {
         while (true)
         {
@@ -542,6 +530,15 @@ namespace taskEngineApi
                 }
             }
         }
+    }
+
+
+    void NullExceptionHandler::OnException(
+        std::exception_ptr eptr,
+        const std::string& context
+    ) noexcept
+    {
+        std::cerr << "[NullExceptionHandler] Exception in context: " << context << std::endl;
     }
 
 } // namespace taskEngineApi
