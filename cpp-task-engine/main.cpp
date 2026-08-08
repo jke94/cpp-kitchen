@@ -12,34 +12,55 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 /**
  * @brief Engine API definition
- * 
- * It contains only the minimal classes and interfaces that a client needs to consume the API.
+ *
+ * Design notes
+ * ------------
+ * Submit (template):
+ *   Primary client API. Returns std::future<T> for any callable return type T.
+ *   Virtual functions cannot be templates, so the polymorphic queue entry
+ *   point is SubmitDetached(std::function<void()>).
+ *
+ * Exception / metrics contract:
+ *   - A task that throws is reported BOTH to the future (via promise) AND
+ *     to WorkerLoop (rethrow after set_exception), so:
+ *       * IExceptionHandler::OnException is invoked
+ *       * TaskMetrics::failed is incremented
+ *       * future.get() still rethrows for the client
+ *   - Metrics invariant:
+ *       submitted == successful + failed
+ *     where "successful" is TaskMetrics::completed
+ *   - Latency includes both successful and failed executions
+ *     (averageLatencyMs = totalLatencyMs / (completed + failed)).
+ *
+ * WaitForIdle:
+ *   Blocks until there are no queued and no executing tasks
+ *   (outstanding work == 0).
+ *
+ * GetPendingTaskCount:
+ *   Returns outstanding tasks (queued + executing).
+ *
+ * Stop:
+ *   Graceful: workers finish already-dequeued tasks; no new tasks accepted.
+ *   Queued tasks that were never dequeued are abandoned (not executed).
+ *   (Current implementation: workers drain the queue before exit because
+ *    stopFlag is checked only when the queue is empty. Documented below.)
  */
 namespace taskEngineApi
 {
-    /**
-     * @brief Interface for handling exceptions thrown by tasks.
-     * @note OnException must be noexcept and thread-safe. 
-     * If it throws, the behavior is undefined (may call std::terminate).
-     */
     class IExceptionHandler
     {
     public:
-
-        /**
-         * @brief Virtual destructor for proper cleanup of derived classes.
-         */
         virtual ~IExceptionHandler() = default;
 
         /**
-         * @brief Called when a task throws an exception.
-         * @param eptr The exception pointer to the thrown exception.
-         * @param context A string providing context about where the exception occurred.
-         * @note This method must be noexcept and thread-safe.
+         * @brief Called when a task throws.
+         * @note Must be noexcept and thread-safe. Violations are swallowed
+         *       by the worker so that a bad handler cannot kill the process.
          */
         virtual void OnException(
             std::exception_ptr eptr,
@@ -52,9 +73,6 @@ namespace taskEngineApi
         IExceptionHandler& operator=(const IExceptionHandler&) = default;
     };
 
-    /**
-     * @brief Default exception handler that does nothing.
-     */
     class NullExceptionHandler final : public IExceptionHandler
     {
     public:
@@ -65,74 +83,77 @@ namespace taskEngineApi
     };
 
     /**
-     * @brief Struct for task metrics (submitted, completed, failed, latency, throughput).
+     * @brief Task metrics.
+     *
+     * Invariant (after all outstanding work has finished):
+     *   submitted == completed + failed
+     *
+     * - completed : tasks that finished without throwing
+     * - failed    : tasks that threw (observed by the worker)
+     * - totalLatencyMs / averageLatencyMs : include BOTH success and failure
      */
     struct TaskMetrics
     {
-        // Submitted tasks.
-        std::uint64_t submitted = 0;
-        
-        // Completed tasks.
-        std::uint64_t completed = 0;
-        
-        // Failed tasks with exceptions.
-        std::uint64_t failed = 0;
-
-        // Latency metrics (in milliseconds).
-        double totalLatencyMs  = 0.0;
-
-        // Average latency and throughput (computed on demand).
-        double averageLatencyMs = 0.0;
-
-        // Throughput metrics (tasks per second).
-        double tasksPerSecond   = 0.0;
-
-        // Start time for throughput calculation.
+        std::uint64_t submitted         = 0;
+        std::uint64_t completed         = 0;  // successful only
+        std::uint64_t failed            = 0;
+        double        totalLatencyMs    = 0.0; // success + failure
+        double        averageLatencyMs  = 0.0; // total / (completed + failed)
+        double        tasksPerSecond    = 0.0; // (completed + failed) / elapsed
         std::chrono::steady_clock::time_point startTime;
     };
 
-    /**
-     * @brief Interface for the task engine.
-     */
     class IEngine
     {
     public:
         virtual ~IEngine() = default;
 
         /**
-         * @brief Submits a task to the engine.
-         * @param task A std::function representing the task to be executed.
-         * @throws std::invalid_argument if the task is empty.
-         * @throws std::runtime_error if the engine is stopped.
+         * @brief Fire-and-forget + polymorphic queue hook.
+         * @throws std::invalid_argument if task is empty
+         * @throws std::runtime_error if the engine is stopped
          */
-        virtual void Submit(std::function<void()> task) = 0;
+        virtual void SubmitDetached(std::function<void()> task) = 0;
 
+        /**
+         * @brief Primary API: submit callable, get future<T>.
+         *
+         * Exceptions thrown by the callable:
+         *   1) are stored in the returned future (future.get() rethrows)
+         *   2) are observed by the worker → OnException + metrics.failed
+         */
         template <typename F, typename... Args>
-        auto SubmitWithResult(F&& f, Args&&... args)
+        auto Submit(F&& f, Args&&... args)
             -> std::future<std::invoke_result_t<std::decay_t<F>, Args...>>;
 
+        /**
+         * @brief Blocks until outstanding tasks (queued + executing) == 0.
+         */
         virtual void WaitForIdle() = 0;
+
+        /**
+         * @brief Graceful stop: no new tasks; workers exit when queue is empty.
+         *        Tasks already dequeued finish. Join all workers.
+         */
         virtual void Stop() = 0;
 
         virtual std::size_t GetThreadCount() const = 0;
+
+        /**
+         * @brief Outstanding tasks = queued + currently executing.
+         */
         virtual std::size_t GetPendingTaskCount() const = 0;
 
         /**
-         * Snapshot del estado. NO es seguro usarlo como:
-         *   if (IsRunning()) { Submit(...); }
-         * Existe condición de carrera (TOCTOU) con Stop().
-         * Submit() ya valida internamente y lanza si está detenido.
+         * Snapshot only. NOT safe as: if (IsRunning()) Submit(...);
+         * TOCTOU with Stop(). Submit/SubmitDetached validate internally.
          */
         virtual bool IsRunning() const = 0;
 
-        // ----- APIs de métricas -----
         virtual TaskMetrics GetMetrics() const = 0;
 
         /**
-         * Reinicia contadores y reloj.
-         * Si se llama mientras hay tareas en vuelo, las estadísticas
-         * posteriores pueden mezclar datos de antes y después del reset
-         * (best-effort). Para métricas consistentes, llamar solo en idle.
+         * Best-effort reset. Prefer calling when idle.
          */
         virtual void ResetMetrics() = 0;
 
@@ -142,16 +163,9 @@ namespace taskEngineApi
         IEngine& operator=(const IEngine&) = default;
     };
 
-    /**
-     * @brief Base implementation of the task engine.
-     */
     class Engine final : public IEngine
     {
     public:
-        /**
-         * @param numThreads         Número de worker threads (> 0)
-         * @param exceptionHandler   Handler de excepciones (obligatorio, DI)
-         */
         explicit Engine(
             std::size_t numThreads,
             std::shared_ptr<IExceptionHandler> exceptionHandler
@@ -164,7 +178,7 @@ namespace taskEngineApi
         Engine(Engine&&) = delete;
         Engine& operator=(Engine&&) = delete;
 
-        void Submit(std::function<void()> task) override;
+        void SubmitDetached(std::function<void()> task) override;
 
         void WaitForIdle() override;
         void Stop() override;
@@ -179,13 +193,12 @@ namespace taskEngineApi
     private:
         void WorkerLoop();
 
-        // ---- Estado interno ----
         std::shared_ptr<IExceptionHandler>  exceptionHandler;
-
-        // Número de threads inmutable tras la construcción.
-        // Evita data race en GetThreadCount() vs Stop().
         const std::size_t                   threadCount;
 
+        // All shared mutable state below is protected by mutex,
+        // except stopFlag which is atomic for lock-free IsRunning().
+        // stopFlag is still written under mutex in Stop() to pair with cv.
         mutable std::mutex                  mutex;
         std::condition_variable             cv;
         std::condition_variable             idleCv;
@@ -199,62 +212,82 @@ namespace taskEngineApi
     };
 
     // -----------------------------------------------------------------
-    // Template implementation (debe estar visible)
+    // Template Submit — exceptions propagate to BOTH future and worker
     // -----------------------------------------------------------------
     template <typename F, typename... Args>
-    auto IEngine::SubmitWithResult(F&& f, Args&&... args)
+    auto IEngine::Submit(F&& f, Args&&... args)
         -> std::future<std::invoke_result_t<std::decay_t<F>, Args...>>
     {
         using ReturnType = std::invoke_result_t<std::decay_t<F>, Args...>;
 
-        // Evitamos std::bind (problemas con move-only y copias innecesarias).
-        // Usamos lambda + perfect forwarding + packaged_task.
-        auto task = std::make_shared<std::packaged_task<ReturnType()>>(
-            [fn = std::decay_t<F>(std::forward<F>(f)),
-             tup = std::make_tuple(std::forward<Args>(args)...)]() mutable
+        auto promise = std::make_shared<std::promise<ReturnType>>();
+        std::future<ReturnType> future = promise->get_future();
+
+        // Capture the callable and args; run them in the worker.
+        // On exception: set_exception on the promise AND rethrow so that
+        // WorkerLoop's try/catch observes the failure (metrics + handler).
+        auto work = [promise,
+                     fn = std::decay_t<F>(std::forward<F>(f)),
+                     tup = std::make_tuple(std::forward<Args>(args)...)]() mutable
+        {
+            try
             {
-                return std::apply(std::move(fn), std::move(tup));
+                if constexpr (std::is_void_v<ReturnType>)
+                {
+                    std::apply(std::move(fn), std::move(tup));
+                    promise->set_value();
+                }
+                else
+                {
+                    promise->set_value(
+                        std::apply(std::move(fn), std::move(tup))
+                    );
+                }
             }
-        );
+            catch (...)
+            {
+                // Deliver to client via future
+                promise->set_exception(std::current_exception());
+                // Deliver to worker via rethrow → OnException + metrics.failed
+                throw;
+            }
+        };
 
-        std::future<ReturnType> future = task->get_future();
-
-        Submit([task]() {
-            (*task)();
-        });
+        SubmitDetached(std::function<void()>(std::move(work)));
 
         return future;
     }
 
 } // namespace taskEngineApi
 
+// ============================================================
+// Client: HTTP GET / POST simulation
+// ============================================================
 namespace taskEngineClient
 {
-    /**
-     * @brief Latency simulation minimum (milliseconds).
-     */
-    const int MIN_LATENCY_MS = 80;
+    struct HttpResponse
+    {
+        int         statusCode  = 0;
+        std::string body;
+        std::string contentType;
+        int         requestId   = 0;
+    };
 
-    /**
-     * @brief Latency simulation maximum (milliseconds).
-     */
-    const int MAX_LATENCY_MS = 120;
+    struct PostResult
+    {
+        int         statusCode  = 0;
+        std::string location;
+        std::string body;
+        int         requestId   = 0;
+    };
 
-    /**
-     * @brief Percentage of requests that will fail (0–100).
-     * Example: 7 → aproximadamente 7 % de fallos.
-     */
+    const int MIN_LATENCY_MS     = 80;
+    const int MAX_LATENCY_MS     = 120;
     const int FAILURE_PERCENTAGE = 7;
 
-    /**
-     * @brief HTTP request simulation (blocking, with variable latency and configurable failure rate).
-     * @note latency uniform in [MIN_LATENCY_MS, MAX_LATENCY_MS] and failure rate approximately FAILURE_PERCENTAGE % of requests (deterministic by id for reproducibility in tests).
-     */
-    void fetchData(int id);
+    HttpResponse httpGet(int id);
+    PostResult   httpPost(int id, const std::string& payload);
 
-    /**
-     * @brief Handler exception manager for client code.
-     */
     class LoggingExceptionHandler final : public taskEngineApi::IExceptionHandler
     {
     public:
@@ -269,22 +302,13 @@ namespace taskEngineClient
 using namespace taskEngineApi;
 using namespace taskEngineClient;
 
-/**
- * @brief Program entrypoint to simulate consume of TaskEngine API.
- */
-int main(int argc, char* argv[])
+int main(int /*argc*/, char* /*argv*/[])
 {
-    // ---------------------------------------------------------
-    // 1. Configuración e inyección de dependencias
-    // ---------------------------------------------------------
-    constexpr std::size_t NUM_THREADS = 6;          // Inyectable
-    constexpr int         BATCH_SIZE  = 40;         // Peticiones por ciclo
-    constexpr int         NUM_BATCHES = 4;          // Número de ciclos de polling
+    constexpr std::size_t NUM_THREADS = 6;
+    constexpr int         BATCH_SIZE  = 20;
+    constexpr int         NUM_BATCHES = 4;
 
     auto exceptionHandler = std::make_shared<LoggingExceptionHandler>();
-
-    // El número de threads y el handler se inyectan por constructor
-    // (sin parámetros por defecto: el cliente debe decidir explícitamente)
     Engine engine(NUM_THREADS, exceptionHandler);
 
     std::cout << "TaskEngine started with " << engine.GetThreadCount()
@@ -292,67 +316,126 @@ int main(int argc, char* argv[])
               << "Failure simulation: " << FAILURE_PERCENTAGE << "%\n"
               << "Latency range: [" << MIN_LATENCY_MS << "–" << MAX_LATENCY_MS << "] ms\n\n";
 
-    // ---------------------------------------------------------
-    // 2. Loop de polling (simulación del sistema real)
-    // ---------------------------------------------------------
     for (int batch = 0; batch < NUM_BATCHES; ++batch)
     {
         std::cout << ">>> Batch " << (batch + 1) << "/" << NUM_BATCHES
-                  << " — enviando " << BATCH_SIZE << " tareas...\n";
+                  << " — submitting " << BATCH_SIZE << " GET + "
+                  << BATCH_SIZE << " POST ...\n";
 
-        // Enviamos un batch de peticiones HTTP
+        std::vector<std::future<HttpResponse>> getFutures;
+        std::vector<std::future<PostResult>>   postFutures;
+        getFutures.reserve(static_cast<std::size_t>(BATCH_SIZE));
+        postFutures.reserve(static_cast<std::size_t>(BATCH_SIZE));
+
         for (int i = 0; i < BATCH_SIZE; ++i)
         {
             const int requestId = batch * BATCH_SIZE + i;
-            engine.Submit([requestId]
-            {
-                fetchData(requestId);
-            });
+
+            getFutures.push_back(
+                engine.Submit([requestId]() -> HttpResponse {
+                    return httpGet(requestId);
+                })
+            );
+
+            postFutures.push_back(
+                engine.Submit([requestId]() -> PostResult {
+                    return httpPost(requestId, "{\"action\":\"create\",\"id\":"
+                                   + std::to_string(requestId) + "}");
+                })
+            );
         }
 
-        // Esperamos a que termine el batch completo
         engine.WaitForIdle();
 
-        // -----------------------------------------------------
-        // 3. Consultamos métricas
-        // -----------------------------------------------------
+        int getOk = 0, getErr = 0;
+        for (auto& fut : getFutures)
+        {
+            try
+            {
+                HttpResponse resp = fut.get();
+                if (resp.statusCode >= 200 && resp.statusCode < 300)
+                {
+                    ++getOk;
+                }
+                else
+                {
+                    ++getErr;
+                }
+            }
+            catch (const std::exception&)
+            {
+                ++getErr;
+            }
+        }
+
+        int postOk = 0, postErr = 0;
+        for (auto& fut : postFutures)
+        {
+            try
+            {
+                PostResult resp = fut.get();
+                if (resp.statusCode >= 200 && resp.statusCode < 300)
+                {
+                    ++postOk;
+                }
+                else
+                {
+                    ++postErr;
+                }
+            }
+            catch (const std::exception&)
+            {
+                ++postErr;
+            }
+        }
+
         const TaskMetrics m = engine.GetMetrics();
+        const std::uint64_t finished = m.completed + m.failed;
 
-        std::cout << "--- Métricas después del batch " << (batch + 1) << " ---\n"
-                  << "  Submitted      : " << m.submitted      << "\n"
-                  << "  Completed      : " << m.completed      << "\n"
+        std::cout << "--- Metrics after batch " << (batch + 1) << " ---\n"
+                  << "  Submitted      : " << m.submitted << "\n"
+                  << "  Completed (ok) : " << m.completed << "\n"
                   << "  Failed         : " << m.failed
-                  << " (aprox. " << (m.failed * 100.0 / m.submitted) << "%)\n"
-                  << "  Avg Latency    : " << m.averageLatencyMs << " ms\n"
+                  << " (approx. " << (m.submitted ? m.failed * 100.0 / m.submitted : 0.0) << "%)\n"
+                  << "  Finished total : " << finished
+                  << " (invariant submitted==completed+failed: "
+                  << (m.submitted == finished ? "OK" : "BROKEN") << ")\n"
+                  << "  Avg Latency    : " << m.averageLatencyMs << " ms (all finished tasks)\n"
                   << "  Throughput     : " << m.tasksPerSecond << " tasks/s\n"
-                  << "  Pending        : " << engine.GetPendingTaskCount() << "\n\n";
+                  << "  Pending        : " << engine.GetPendingTaskCount() << "\n"
+                  << "  GET  OK/ERR    : " << getOk << " / " << getErr << "\n"
+                  << "  POST OK/ERR    : " << postOk << " / " << postErr << "\n\n";
 
-        // Pequeña pausa entre batches (simula intervalo de polling)
         std::this_thread::sleep_for(std::chrono::milliseconds(300));
     }
 
-    // ---------------------------------------------------------
-    // 4. Parada limpia
-    // ---------------------------------------------------------
     std::cout << "Stopping TaskEngine...\n";
     engine.Stop();
 
-    // Métricas finales
     const TaskMetrics finalMetrics = engine.GetMetrics();
-    std::cout << "\n=== Métricas finales ===\n"
+    const std::uint64_t finished = finalMetrics.completed + finalMetrics.failed;
+
+    std::cout << "\n=== Final metrics ===\n"
               << "Total submitted : " << finalMetrics.submitted << "\n"
               << "Total completed : " << finalMetrics.completed << "\n"
               << "Total failed    : " << finalMetrics.failed
-              << " (aprox. " << (finalMetrics.failed * 100.0 / finalMetrics.submitted) << "%)\n"
+              << " (approx. "
+              << (finalMetrics.submitted
+                      ? finalMetrics.failed * 100.0 / finalMetrics.submitted
+                      : 0.0)
+              << "%)\n"
+              << "Finished total  : " << finished
+              << " (invariant: "
+              << (finalMetrics.submitted == finished ? "OK" : "BROKEN") << ")\n"
               << "Avg latency     : " << finalMetrics.averageLatencyMs << " ms\n"
               << "Avg throughput  : " << finalMetrics.tasksPerSecond << " tasks/s\n";
 
     return 0;
 }
 
-/**
- * @brief Implementation of the TaskEngine API.
- */
+// ============================================================
+// Engine implementation
+// ============================================================
 namespace taskEngineApi
 {
     Engine::Engine(
@@ -393,17 +476,16 @@ namespace taskEngineApi
         Stop();
     }
 
-    void Engine::Submit(std::function<void()> task)
+    void Engine::SubmitDetached(std::function<void()> task)
     {
-        // Defensive validation: empty tasks are not allowed
         if (!task)
         {
-            throw std::invalid_argument("TaskEngine::Submit: empty task is not allowed");
+            throw std::invalid_argument("TaskEngine::SubmitDetached: empty task is not allowed");
         }
 
         {
             std::lock_guard<std::mutex> lock(mutex);
-            if (stopFlag)
+            if (stopFlag.load(std::memory_order_relaxed))
             {
                 throw std::runtime_error("TaskEngine is stopped");
             }
@@ -427,11 +509,13 @@ namespace taskEngineApi
     {
         {
             std::lock_guard<std::mutex> lock(mutex);
-            if (stopFlag)
+            if (stopFlag.load(std::memory_order_relaxed))
             {
                 return;
             }
-            stopFlag = true;
+            // Written under mutex so Wait/Worker see a consistent snapshot
+            // together with the queue state; atomic for lock-free IsRunning.
+            stopFlag.store(true, std::memory_order_release);
         }
 
         cv.notify_all();
@@ -448,7 +532,6 @@ namespace taskEngineApi
 
     std::size_t Engine::GetThreadCount() const
     {
-        // Inmutable → sin data race con Stop()
         return threadCount;
     }
 
@@ -460,7 +543,6 @@ namespace taskEngineApi
 
     bool Engine::IsRunning() const
     {
-        // Snapshot. Ver documentación de la interface.
         return !stopFlag.load(std::memory_order_acquire);
     }
 
@@ -470,9 +552,10 @@ namespace taskEngineApi
 
         TaskMetrics m = metrics;
 
-        if (m.completed > 0)
+        const std::uint64_t finished = m.completed + m.failed;
+        if (finished > 0)
         {
-            m.averageLatencyMs = m.totalLatencyMs / static_cast<double>(m.completed);
+            m.averageLatencyMs = m.totalLatencyMs / static_cast<double>(finished);
         }
 
         const auto now = std::chrono::steady_clock::now();
@@ -480,7 +563,8 @@ namespace taskEngineApi
 
         if (elapsedSec > 0.0)
         {
-            m.tasksPerSecond = static_cast<double>(m.completed) / elapsedSec;
+            // Throughput counts all finished work (success + failure)
+            m.tasksPerSecond = static_cast<double>(finished) / elapsedSec;
         }
 
         return m;
@@ -503,10 +587,10 @@ namespace taskEngineApi
                 std::unique_lock<std::mutex> lock(mutex);
 
                 cv.wait(lock, [this] {
-                    return stopFlag || !tasks.empty();
+                    return stopFlag.load(std::memory_order_relaxed) || !tasks.empty();
                 });
 
-                if (stopFlag && tasks.empty())
+                if (stopFlag.load(std::memory_order_relaxed) && tasks.empty())
                 {
                     return;
                 }
@@ -515,7 +599,6 @@ namespace taskEngineApi
                 tasks.pop();
             }
 
-            // ---- Medición de latencia + ejecución segura ----
             const auto start = std::chrono::steady_clock::now();
             bool success = true;
 
@@ -527,9 +610,6 @@ namespace taskEngineApi
             {
                 success = false;
 
-                // Defensa en profundidad: aunque OnException es noexcept,
-                // un handler mal implementado podría lanzar y matar el proceso.
-                // Aislamos el worker completamente.
                 try
                 {
                     exceptionHandler->OnException(
@@ -539,9 +619,7 @@ namespace taskEngineApi
                 }
                 catch (...)
                 {
-                    // Handler violó el contrato noexcept.
-                    // No re-lanzamos: el worker debe seguir vivo.
-                    // En producción se podría loguear a stderr de forma mínima.
+                    // Handler violated noexcept — keep worker alive
                 }
             }
 
@@ -552,10 +630,12 @@ namespace taskEngineApi
             {
                 std::lock_guard<std::mutex> lock(mutex);
 
+                // Latency always accumulated (success and failure)
+                metrics.totalLatencyMs += latencyMs;
+
                 if (success)
                 {
                     ++metrics.completed;
-                    metrics.totalLatencyMs += latencyMs;
                 }
                 else
                 {
@@ -581,32 +661,70 @@ namespace taskEngineApi
 
 } // namespace taskEngineApi
 
+// ============================================================
+// Client implementation
+// ============================================================
 namespace taskEngineClient
 {
-    void fetchData(int id)
+    HttpResponse httpGet(int id)
     {
-        // Defensive validation of constants (compile-time)
         static_assert(MIN_LATENCY_MS >= 0, "MIN_LATENCY_MS must be >= 0");
         static_assert(MAX_LATENCY_MS >= MIN_LATENCY_MS, "MAX_LATENCY_MS must be >= MIN_LATENCY_MS");
         static_assert(FAILURE_PERCENTAGE >= 0 && FAILURE_PERCENTAGE <= 100,
                       "FAILURE_PERCENTAGE must be in [0, 100]");
 
-        // Simulated latency: deterministically based on id to ensure reproducibility in tests.
         const int range = MAX_LATENCY_MS - MIN_LATENCY_MS + 1;
         const auto latency = std::chrono::milliseconds(MIN_LATENCY_MS + (id % range));
         std::this_thread::sleep_for(latency);
 
-        // Simulate failure based on the configured percentage. 
-        // Using modulo 100 to get a deterministic "percentile" based on the id.
         if (FAILURE_PERCENTAGE > 0 && (id % 100) < FAILURE_PERCENTAGE)
         {
             throw std::runtime_error(
-                "HTTP error (simulated) for request id=" + std::to_string(id)
+                "HTTP GET error (simulated) for request id=" + std::to_string(id)
             );
         }
 
-        // Processing successful request (for demonstration purposes, we just print a message)
-        // std::cout << "Request " << id << " OK\n";
+        HttpResponse resp;
+        resp.statusCode  = 200;
+        resp.contentType = "application/json";
+        resp.requestId   = id;
+        resp.body        = std::string("{\"id\":")
+                         + std::to_string(id)
+                         + ",\"method\":\"GET\""
+                         + ",\"status\":\"ok\""
+                         + ",\"payload\":\"sample-data-"
+                         + std::to_string(id)
+                         + "\"}";
+        return resp;
+    }
+
+    PostResult httpPost(int id, const std::string& payload)
+    {
+        const int range = MAX_LATENCY_MS - MIN_LATENCY_MS + 1;
+        const auto latency = std::chrono::milliseconds(
+            MIN_LATENCY_MS + ((id * 3) % range)
+        );
+        std::this_thread::sleep_for(latency);
+
+        if (FAILURE_PERCENTAGE > 0 && ((id + 3) % 100) < FAILURE_PERCENTAGE)
+        {
+            throw std::runtime_error(
+                "HTTP POST error (simulated) for request id=" + std::to_string(id)
+            );
+        }
+
+        PostResult resp;
+        resp.statusCode = 201;
+        resp.requestId  = id;
+        resp.location   = "/resources/" + std::to_string(id);
+        resp.body       = std::string("{\"id\":")
+                        + std::to_string(id)
+                        + ",\"method\":\"POST\""
+                        + ",\"status\":\"created\""
+                        + ",\"echo\":"
+                        + payload
+                        + "}";
+        return resp;
     }
 
     void LoggingExceptionHandler::OnException(
