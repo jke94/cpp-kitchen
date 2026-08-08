@@ -211,6 +211,16 @@ namespace taskEngineApi
 namespace taskEngineClient
 {
     /**
+     * @brief Latency simulation minimum constants (in milliseconds).
+     */
+    const int MIN_LATENCY_MS = 80;
+
+    /**
+     * @brief Latency simulation maximum constants (in milliseconds).
+     */
+    const int MAX_LATENCY_MS = 120;
+
+    /**
      * @brief HTTP request simulation (blocking, with variable latency and occasional errors).
      */
     void fetchData(int id);
@@ -548,7 +558,7 @@ namespace taskEngineClient
     void fetchData(int id)
     {
         // Simulamos latencia variable de red
-        const auto latency = std::chrono::milliseconds(20 + (id % 60));
+        const auto latency = std::chrono::milliseconds(MIN_LATENCY_MS + (id % (MAX_LATENCY_MS - MIN_LATENCY_MS + 1)));
         std::this_thread::sleep_for(latency);
 
         // Simulamos errores ocasionales (aprox. 1 de cada 15)
