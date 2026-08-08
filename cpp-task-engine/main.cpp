@@ -16,9 +16,16 @@
 
 /**
  * @brief TaskEngine API definition
+ *
+ * Contiene únicamente las clases e interfaces mínimas que un cliente
+ * necesita para consumir la API.
  */
 namespace taskEngine
 {
+    // ============================================================
+    // Exception Handler
+    // ============================================================
+
     /**
      * @brief Interface para manejar excepciones lanzadas por las tareas.
      * Se inyecta por constructor → Dependency Injection.
@@ -34,20 +41,21 @@ namespace taskEngine
          */
         virtual void OnException(
             std::exception_ptr eptr,
-            const std::string& context = ""
+            const std::string& context
         ) noexcept = 0;
     };
 
     /**
      * Implementación por defecto (no hace nada).
-     * Útil cuando no se quiere inyectar un handler real.
+     * Declaración únicamente. La implementación está fuera de la API.
      */
     class NullExceptionHandler final : public IExceptionHandler
     {
     public:
-        void OnException(std::exception_ptr, const std::string& = "") noexcept override
-        {
-        }
+        void OnException(
+            std::exception_ptr eptr,
+            const std::string& context
+        ) noexcept override;
     };
 
     // ============================================================
@@ -93,7 +101,7 @@ namespace taskEngine
     };
 
     // ============================================================
-    // Implementación concreta (sin PImpl)
+    // Implementación concreta (declaración)
     // ============================================================
 
     class TaskEngine : public ITaskEngine
@@ -101,10 +109,12 @@ namespace taskEngine
     public:
         /**
          * @param numThreads         Número de worker threads (> 0)
-         * @param exceptionHandler   Handler de excepciones (opcional, DI)
+         * @param exceptionHandler   Handler de excepciones (obligatorio, DI)
          */
-        explicit TaskEngine(std::size_t numThreads,
-                            std::shared_ptr<IExceptionHandler> exceptionHandler = nullptr);
+        explicit TaskEngine(
+            std::size_t numThreads,
+            std::shared_ptr<IExceptionHandler> exceptionHandler
+        );
 
         ~TaskEngine() override;
 
@@ -167,6 +177,19 @@ namespace taskEngine
 
 } // namespace taskEngine
 
+// ============================================================
+// Implementaciones de la API (fuera de la zona de definición)
+// ============================================================
+namespace taskEngine
+{
+    void NullExceptionHandler::OnException(
+        std::exception_ptr /*eptr*/,
+        const std::string& /*context*/
+    ) noexcept
+    {
+    }
+}
+
 using namespace taskEngine;
 
 // ============================================================
@@ -175,7 +198,10 @@ using namespace taskEngine;
 class LoggingExceptionHandler final : public IExceptionHandler
 {
 public:
-    void OnException(std::exception_ptr eptr, const std::string& context) noexcept override
+    void OnException(
+        std::exception_ptr eptr,
+        const std::string& context
+    ) noexcept override
     {
         try
         {
@@ -229,6 +255,7 @@ int main()
     auto exceptionHandler = std::make_shared<LoggingExceptionHandler>();
 
     // El número de threads y el handler se inyectan por constructor
+    // (sin parámetros por defecto: el cliente debe decidir explícitamente)
     TaskEngine engine(NUM_THREADS, exceptionHandler);
 
     std::cout << "TaskEngine started with " << engine.GetThreadCount()
@@ -290,12 +317,14 @@ int main()
 }
 
 // ============================================================
-// Implementación de TaskEngine (sin PImpl)
+// Implementación de TaskEngine
 // ============================================================
 namespace taskEngine
 {
-    TaskEngine::TaskEngine(std::size_t numThreads,
-                           std::shared_ptr<IExceptionHandler> exceptionHandler)
+    TaskEngine::TaskEngine(
+        std::size_t numThreads,
+        std::shared_ptr<IExceptionHandler> exceptionHandler
+    )
         : stopFlag(false)
         , pendingTasks(0)
     {
@@ -454,7 +483,10 @@ namespace taskEngine
             catch (...)
             {
                 success = false;
-                exceptionHandler->OnException(std::current_exception(), "TaskEngine::Worker");
+                exceptionHandler->OnException(
+                    std::current_exception(),
+                    "TaskEngine::Worker"
+                );
             }
 
             const auto end = std::chrono::steady_clock::now();
