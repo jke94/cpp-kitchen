@@ -32,23 +32,23 @@
  *       * TaskMetrics::failed is incremented
  *       * future.get() still rethrows for the client
  *   - Metrics invariant:
- *       submitted == successful + failed
- *     where "successful" is TaskMetrics::completed
+ *       submitted == completed + failed
+ *     where "completed" means successful only
  *   - Latency includes both successful and failed executions
  *     (averageLatencyMs = totalLatencyMs / (completed + failed)).
  *
+ * Engine encapsulation:
+ *   Clients should depend on IEngine. Engine only exposes constructor/destructor
+ *   publicly; all overrides are private (callable only through IEngine*).
+ *
  * WaitForIdle:
- *   Blocks until there are no queued and no executing tasks
- *   (outstanding work == 0).
+ *   Blocks until outstanding tasks (queued + executing) == 0.
  *
  * GetPendingTaskCount:
  *   Returns outstanding tasks (queued + executing).
  *
  * Stop:
- *   Graceful: workers finish already-dequeued tasks; no new tasks accepted.
- *   Queued tasks that were never dequeued are abandoned (not executed).
- *   (Current implementation: workers drain the queue before exit because
- *    stopFlag is checked only when the queue is empty. Documented below.)
+ *   Graceful: no new tasks; workers drain the queue then exit; join all workers.
  */
 namespace taskEngineApi
 {
@@ -163,6 +163,13 @@ namespace taskEngineApi
         IEngine& operator=(const IEngine&) = default;
     };
 
+    /**
+     * @brief Concrete engine. Depend on IEngine from client code.
+     *
+     * Public surface is limited to construction/destruction.
+     * All IEngine overrides are private: still reachable via IEngine*,
+     * but not callable on an Engine* / Engine& directly.
+     */
     class Engine final : public IEngine
     {
     public:
@@ -178,27 +185,24 @@ namespace taskEngineApi
         Engine(Engine&&) = delete;
         Engine& operator=(Engine&&) = delete;
 
+    private:
+        // --- IEngine overrides (private: use through IEngine*) ---
         void SubmitDetached(std::function<void()> task) override;
-
         void WaitForIdle() override;
         void Stop() override;
-
         std::size_t GetThreadCount() const override;
         std::size_t GetPendingTaskCount() const override;
         bool IsRunning() const override;
-
         TaskMetrics GetMetrics() const override;
         void ResetMetrics() override;
 
-    private:
         void WorkerLoop();
 
         std::shared_ptr<IExceptionHandler>  exceptionHandler;
         const std::size_t                   threadCount;
 
-        // All shared mutable state below is protected by mutex,
-        // except stopFlag which is atomic for lock-free IsRunning().
-        // stopFlag is still written under mutex in Stop() to pair with cv.
+        // Shared mutable state protected by mutex, except stopFlag
+        // (atomic for lock-free IsRunning; written under mutex in Stop).
         mutable std::mutex                  mutex;
         std::condition_variable             cv;
         std::condition_variable             idleCv;
@@ -223,9 +227,6 @@ namespace taskEngineApi
         auto promise = std::make_shared<std::promise<ReturnType>>();
         std::future<ReturnType> future = promise->get_future();
 
-        // Capture the callable and args; run them in the worker.
-        // On exception: set_exception on the promise AND rethrow so that
-        // WorkerLoop's try/catch observes the failure (metrics + handler).
         auto work = [promise,
                      fn = std::decay_t<F>(std::forward<F>(f)),
                      tup = std::make_tuple(std::forward<Args>(args)...)]() mutable
@@ -246,9 +247,7 @@ namespace taskEngineApi
             }
             catch (...)
             {
-                // Deliver to client via future
                 promise->set_exception(std::current_exception());
-                // Deliver to worker via rethrow → OnException + metrics.failed
                 throw;
             }
         };
@@ -309,9 +308,12 @@ int main(int /*argc*/, char* /*argv*/[])
     constexpr int         NUM_BATCHES = 4;
 
     auto exceptionHandler = std::make_shared<LoggingExceptionHandler>();
-    Engine engine(NUM_THREADS, exceptionHandler);
 
-    std::cout << "TaskEngine started with " << engine.GetThreadCount()
+    // Depend on the abstraction, not the concrete Engine surface.
+    std::unique_ptr<IEngine> engine =
+        std::make_unique<Engine>(NUM_THREADS, exceptionHandler);
+
+    std::cout << "TaskEngine started with " << engine->GetThreadCount()
               << " worker threads\n"
               << "Failure simulation: " << FAILURE_PERCENTAGE << "%\n"
               << "Latency range: [" << MIN_LATENCY_MS << "–" << MAX_LATENCY_MS << "] ms\n\n";
@@ -332,20 +334,20 @@ int main(int /*argc*/, char* /*argv*/[])
             const int requestId = batch * BATCH_SIZE + i;
 
             getFutures.push_back(
-                engine.Submit([requestId]() -> HttpResponse {
+                engine->Submit([requestId]() -> HttpResponse {
                     return httpGet(requestId);
                 })
             );
 
             postFutures.push_back(
-                engine.Submit([requestId]() -> PostResult {
+                engine->Submit([requestId]() -> PostResult {
                     return httpPost(requestId, "{\"action\":\"create\",\"id\":"
-                                   + std::to_string(requestId) + "}");
+                                    + std::to_string(requestId) + "}");
                 })
             );
         }
 
-        engine.WaitForIdle();
+        engine->WaitForIdle();
 
         int getOk = 0, getErr = 0;
         for (auto& fut : getFutures)
@@ -389,7 +391,7 @@ int main(int /*argc*/, char* /*argv*/[])
             }
         }
 
-        const TaskMetrics m = engine.GetMetrics();
+        const TaskMetrics m = engine->GetMetrics();
         const std::uint64_t finished = m.completed + m.failed;
 
         std::cout << "--- Metrics after batch " << (batch + 1) << " ---\n"
@@ -402,7 +404,7 @@ int main(int /*argc*/, char* /*argv*/[])
                   << (m.submitted == finished ? "OK" : "BROKEN") << ")\n"
                   << "  Avg Latency    : " << m.averageLatencyMs << " ms (all finished tasks)\n"
                   << "  Throughput     : " << m.tasksPerSecond << " tasks/s\n"
-                  << "  Pending        : " << engine.GetPendingTaskCount() << "\n"
+                  << "  Pending        : " << engine->GetPendingTaskCount() << "\n"
                   << "  GET  OK/ERR    : " << getOk << " / " << getErr << "\n"
                   << "  POST OK/ERR    : " << postOk << " / " << postErr << "\n\n";
 
@@ -410,9 +412,9 @@ int main(int /*argc*/, char* /*argv*/[])
     }
 
     std::cout << "Stopping TaskEngine...\n";
-    engine.Stop();
+    engine->Stop();
 
-    const TaskMetrics finalMetrics = engine.GetMetrics();
+    const TaskMetrics finalMetrics = engine->GetMetrics();
     const std::uint64_t finished = finalMetrics.completed + finalMetrics.failed;
 
     std::cout << "\n=== Final metrics ===\n"
@@ -513,8 +515,6 @@ namespace taskEngineApi
             {
                 return;
             }
-            // Written under mutex so Wait/Worker see a consistent snapshot
-            // together with the queue state; atomic for lock-free IsRunning.
             stopFlag.store(true, std::memory_order_release);
         }
 
@@ -563,7 +563,6 @@ namespace taskEngineApi
 
         if (elapsedSec > 0.0)
         {
-            // Throughput counts all finished work (success + failure)
             m.tasksPerSecond = static_cast<double>(finished) / elapsedSec;
         }
 
@@ -630,7 +629,6 @@ namespace taskEngineApi
             {
                 std::lock_guard<std::mutex> lock(mutex);
 
-                // Latency always accumulated (success and failure)
                 metrics.totalLatencyMs += latencyMs;
 
                 if (success)
