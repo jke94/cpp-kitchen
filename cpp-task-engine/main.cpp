@@ -16,43 +16,44 @@
 
 /**
  * @brief Engine API definition
- *
- * Contiene únicamente las clases e interfaces mínimas que un cliente
- * necesita para consumir la API.
+ * 
+ * It contains only the minimal classes and interfaces that a client needs to consume the API.
  */
 namespace taskEngineApi
 {
-    // ============================================================
-    // Exception Handler
-    // ============================================================
-
     /**
-     * @brief Interface para manejar excepciones lanzadas por las tareas.
-     * Se inyecta por constructor → Dependency Injection.
-     *
-     * CONTRATO: OnException NO debe lanzar excepciones.
-     * Si lo hace, el comportamiento está indefinido a nivel de proceso
-     * (puede terminar en std::terminate). El motor intenta aislarlo
-     * defensivamente, pero el contrato sigue siendo noexcept.
+     * @brief Interface for handling exceptions thrown by tasks.
+     * @note OnException must be noexcept and thread-safe. 
+     * If it throws, the behavior is undefined (may call std::terminate).
      */
     class IExceptionHandler
     {
     public:
+
+        /**
+         * @brief Virtual destructor for proper cleanup of derived classes.
+         */
         virtual ~IExceptionHandler() = default;
 
         /**
-         * Llamado cuando una tarea lanza una excepción.
-         * Debe ser noexcept y thread-safe.
+         * @brief Called when a task throws an exception.
+         * @param eptr The exception pointer to the thrown exception.
+         * @param context A string providing context about where the exception occurred.
+         * @note This method must be noexcept and thread-safe.
          */
         virtual void OnException(
             std::exception_ptr eptr,
             const std::string& context
         ) noexcept = 0;
+
+    protected:
+        IExceptionHandler() = default;
+        IExceptionHandler(const IExceptionHandler&) = default;
+        IExceptionHandler& operator=(const IExceptionHandler&) = default;
     };
 
     /**
-     * Implementación por defecto (no hace nada).
-     * Declaración únicamente. La implementación está fuera de la API.
+     * @brief Default exception handler that does nothing.
      */
     class NullExceptionHandler final : public IExceptionHandler
     {
@@ -68,12 +69,25 @@ namespace taskEngineApi
      */
     struct TaskMetrics
     {
-        std::uint64_t submitted        = 0;   // Tareas enviadas
-        std::uint64_t completed        = 0;   // Tareas finalizadas con éxito
-        std::uint64_t failed           = 0;   // Tareas que lanzaron excepción
-        double        totalLatencyMs   = 0.0; // Suma de latencias (para media)
-        double        averageLatencyMs = 0.0;
-        double        tasksPerSecond   = 0.0;
+        // Submitted tasks.
+        std::uint64_t submitted = 0;
+        
+        // Completed tasks.
+        std::uint64_t completed = 0;
+        
+        // Failed tasks with exceptions.
+        std::uint64_t failed = 0;
+
+        // Latency metrics (in milliseconds).
+        double totalLatencyMs  = 0.0;
+
+        // Average latency and throughput (computed on demand).
+        double averageLatencyMs = 0.0;
+
+        // Throughput metrics (tasks per second).
+        double tasksPerSecond   = 0.0;
+
+        // Start time for throughput calculation.
         std::chrono::steady_clock::time_point startTime;
     };
 
@@ -86,8 +100,10 @@ namespace taskEngineApi
         virtual ~IEngine() = default;
 
         /**
-         * Envía una tarea. Rechaza std::function vacío (lanza std::invalid_argument).
-         * Si el motor está detenido, lanza std::runtime_error.
+         * @brief Submits a task to the engine.
+         * @param task A std::function representing the task to be executed.
+         * @throws std::invalid_argument if the task is empty.
+         * @throws std::runtime_error if the engine is stopped.
          */
         virtual void Submit(std::function<void()> task) = 0;
 
@@ -119,13 +135,17 @@ namespace taskEngineApi
          * (best-effort). Para métricas consistentes, llamar solo en idle.
          */
         virtual void ResetMetrics() = 0;
+
+    protected:
+        IEngine() = default;
+        IEngine(const IEngine&) = default;
+        IEngine& operator=(const IEngine&) = default;
     };
 
-    // ============================================================
-    // Implementación concreta (declaración)
-    // ============================================================
-
-    class Engine : public IEngine
+    /**
+     * @brief Base implementation of the task engine.
+     */
+    class Engine final : public IEngine
     {
     public:
         /**
@@ -227,7 +247,8 @@ namespace taskEngineClient
     const int FAILURE_PERCENTAGE = 7;
 
     /**
-     * @brief HTTP request simulation (blocking, with variable latency and occasional errors).
+     * @brief HTTP request simulation (blocking, with variable latency and configurable failure rate).
+     * @note latency uniform in [MIN_LATENCY_MS, MAX_LATENCY_MS] and failure rate approximately FAILURE_PERCENTAGE % of requests (deterministic by id for reproducibility in tests).
      */
     void fetchData(int id);
 
@@ -329,9 +350,9 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-// ============================================================
-// Implementación de TaskEngine
-// ============================================================
+/**
+ * @brief Implementation of the TaskEngine API.
+ */
 namespace taskEngineApi
 {
     Engine::Engine(
@@ -374,7 +395,7 @@ namespace taskEngineApi
 
     void Engine::Submit(std::function<void()> task)
     {
-        // Rechazar tareas vacías → evita std::bad_function_call en el worker
+        // Defensive validation: empty tasks are not allowed
         if (!task)
         {
             throw std::invalid_argument("TaskEngine::Submit: empty task is not allowed");
@@ -562,30 +583,21 @@ namespace taskEngineApi
 
 namespace taskEngineClient
 {
-    /**
-     * @brief HTTP request simulation (blocking, with variable latency and configurable failure rate).
-     *
-     * - Latencia: uniforme en [MIN_LATENCY_MS, MAX_LATENCY_MS]
-     * - Fallos: aproximadamente FAILURE_PERCENTAGE % de las peticiones
-     *   (determinista por id para que los tests sean reproducibles)
-     */
     void fetchData(int id)
     {
-        // Validación defensiva de la configuración
+        // Defensive validation of constants (compile-time)
         static_assert(MIN_LATENCY_MS >= 0, "MIN_LATENCY_MS must be >= 0");
         static_assert(MAX_LATENCY_MS >= MIN_LATENCY_MS, "MAX_LATENCY_MS must be >= MIN_LATENCY_MS");
         static_assert(FAILURE_PERCENTAGE >= 0 && FAILURE_PERCENTAGE <= 100,
                       "FAILURE_PERCENTAGE must be in [0, 100]");
 
-        // Simulamos latencia variable de red
+        // Simulated latency: deterministically based on id to ensure reproducibility in tests.
         const int range = MAX_LATENCY_MS - MIN_LATENCY_MS + 1;
         const auto latency = std::chrono::milliseconds(MIN_LATENCY_MS + (id % range));
         std::this_thread::sleep_for(latency);
 
-        // Simulamos errores según el porcentaje configurado.
-        // Usamos módulo 100 para obtener un "percentil" determinista por id.
-        // Ejemplo: FAILURE_PERCENTAGE = 7 → fallan los id cuyo (id % 100) < 7
-        //          (aprox. 7 de cada 100 peticiones).
+        // Simulate failure based on the configured percentage. 
+        // Using modulo 100 to get a deterministic "percentile" based on the id.
         if (FAILURE_PERCENTAGE > 0 && (id % 100) < FAILURE_PERCENTAGE)
         {
             throw std::runtime_error(
@@ -593,7 +605,7 @@ namespace taskEngineClient
             );
         }
 
-        // Aquí iría el procesamiento real de la respuesta...
+        // Processing successful request (for demonstration purposes, we just print a message)
         // std::cout << "Request " << id << " OK\n";
     }
 
