@@ -20,7 +20,7 @@
  * Contiene únicamente las clases e interfaces mínimas que un cliente
  * necesita para consumir la API.
  */
-namespace taskEngine
+namespace taskEngineApi
 {
     // ============================================================
     // Exception Handler
@@ -208,12 +208,12 @@ namespace taskEngine
         return future;
     }
 
-} // namespace taskEngine
+} // namespace taskEngineApi
 
 // ============================================================
 // Implementaciones de la API (fuera de la zona de definición)
 // ============================================================
-namespace taskEngine
+namespace taskEngineApi
 {
     void NullExceptionHandler::OnException(
         std::exception_ptr /*eptr*/,
@@ -222,68 +222,41 @@ namespace taskEngine
     {
     }
 }
-
-using namespace taskEngine;
-
-// ============================================================
-// Handler de excepciones de ejemplo
-// ============================================================
-class LoggingExceptionHandler final : public IExceptionHandler
+namespace taskEngineClient
 {
-public:
-    void OnException(
-        std::exception_ptr eptr,
-        const std::string& context
-    ) noexcept override
+    /**
+     * @brief HTTP request simulation (blocking, with variable latency and occasional errors).
+     */
+    void fetchData(int id);
+
+    /**
+     * @brief Handler exception manager for client code.
+     */
+    class LoggingExceptionHandler final : public taskEngineApi::IExceptionHandler
     {
-        try
-        {
-            if (eptr)
-            {
-                std::rethrow_exception(eptr);
-            }
-        }
-        catch (const std::exception& e)
-        {
-            std::cerr << "[EXCEPTION][" << context << "] " << e.what() << std::endl;
-        }
-        catch (...)
-        {
-            std::cerr << "[EXCEPTION][" << context << "] Unknown exception" << std::endl;
-        }
-    }
-};
+    public:
+        void OnException(
+            std::exception_ptr eptr,
+            const std::string& context
+        ) noexcept override;
+    };
 
-// ============================================================
-// Simulación de una petición HTTP
-// ============================================================
-void FetchData(int id)
-{
-    // Simulamos latencia variable de red
-    const auto latency = std::chrono::milliseconds(20 + (id % 60));
-    std::this_thread::sleep_for(latency);
+} // namespace taskEngineClient
 
-    // Simulamos errores ocasionales (aprox. 1 de cada 15)
-    if (id % 15 == 0)
-    {
-        throw std::runtime_error("HTTP error (simulated) for request id=" + std::to_string(id));
-    }
+using namespace taskEngineApi;
+using namespace taskEngineClient;
 
-    // Aquí iría el procesamiento real de la respuesta...
-    // std::cout << "Request " << id << " OK\n";
-}
-
-// ============================================================
-// main
-// ============================================================
-int main()
+/**
+ * @brief Program entrypoint to simulate consume of TaskEngine API.
+ */
+int main(int argc, char* argv[])
 {
     // ---------------------------------------------------------
     // 1. Configuración e inyección de dependencias
     // ---------------------------------------------------------
     constexpr std::size_t NUM_THREADS = 6;          // Inyectable
-    constexpr int         BATCH_SIZE  = 40;         // Peticiones por ciclo
-    constexpr int         NUM_BATCHES = 4;          // Número de ciclos de polling
+    constexpr int         BATCH_SIZE  = 40;       // Peticiones por ciclo
+    constexpr int         NUM_BATCHES = 4;         // Número de ciclos de polling
 
     auto exceptionHandler = std::make_shared<LoggingExceptionHandler>();
 
@@ -306,8 +279,9 @@ int main()
         for (int i = 0; i < BATCH_SIZE; ++i)
         {
             const int requestId = batch * BATCH_SIZE + i;
-            engine.Submit([requestId] {
-                FetchData(requestId);
+            engine.Submit([requestId] 
+            {
+                fetchData(requestId);
             });
         }
 
@@ -352,7 +326,7 @@ int main()
 // ============================================================
 // Implementación de TaskEngine
 // ============================================================
-namespace taskEngine
+namespace taskEngineApi
 {
     TaskEngine::TaskEngine(
         std::size_t numThreads,
@@ -570,4 +544,49 @@ namespace taskEngine
         }
     }
 
-} // namespace taskEngine
+} // namespace taskEngineApi
+
+namespace taskEngineClient
+{
+    /**
+     * @brief HTTP request simulation (blocking, with variable latency and occasional errors).
+     */
+    void fetchData(int id)
+    {
+        // Simulamos latencia variable de red
+        const auto latency = std::chrono::milliseconds(20 + (id % 60));
+        std::this_thread::sleep_for(latency);
+
+        // Simulamos errores ocasionales (aprox. 1 de cada 15)
+        if (id % 15 == 0)
+        {
+            throw std::runtime_error("HTTP error (simulated) for request id=" + std::to_string(id));
+        }
+
+        // Aquí iría el procesamiento real de la respuesta...
+        // std::cout << "Request " << id << " OK\n";
+    }
+
+    void LoggingExceptionHandler::OnException(
+        std::exception_ptr eptr,
+        const std::string& context
+    ) noexcept
+    {
+        try
+        {
+            if (eptr)
+            {
+                std::rethrow_exception(eptr);
+            }
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "[EXCEPTION][" << context << "] " << e.what() << std::endl;
+        }
+        catch (...)
+        {
+            std::cerr << "[EXCEPTION][" << context << "] Unknown exception" << std::endl;
+        }
+    }
+
+} // namespace taskEngineClient
