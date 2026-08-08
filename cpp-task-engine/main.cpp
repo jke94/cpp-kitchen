@@ -63,10 +63,9 @@ namespace taskEngineApi
         ) noexcept override;
     };
 
-    // ============================================================
-    // Métricas
-    // ============================================================
-
+    /**
+     * @brief Struct for task metrics (submitted, completed, failed, latency, throughput).
+     */
     struct TaskMetrics
     {
         std::uint64_t submitted        = 0;   // Tareas enviadas
@@ -78,14 +77,13 @@ namespace taskEngineApi
         std::chrono::steady_clock::time_point startTime;
     };
 
-    // ============================================================
-    // Interface principal
-    // ============================================================
-
-    class ITaskEngine
+    /**
+     * @brief Interface for the task engine.
+     */
+    class IEngine
     {
     public:
-        virtual ~ITaskEngine() = default;
+        virtual ~IEngine() = default;
 
         /**
          * Envía una tarea. Rechaza std::function vacío (lanza std::invalid_argument).
@@ -127,7 +125,7 @@ namespace taskEngineApi
     // Implementación concreta (declaración)
     // ============================================================
 
-    class Engine : public ITaskEngine
+    class Engine : public IEngine
     {
     public:
         /**
@@ -184,7 +182,7 @@ namespace taskEngineApi
     // Template implementation (debe estar visible)
     // -----------------------------------------------------------------
     template <typename F, typename... Args>
-    auto ITaskEngine::SubmitWithResult(F&& f, Args&&... args)
+    auto IEngine::SubmitWithResult(F&& f, Args&&... args)
         -> std::future<std::invoke_result_t<std::decay_t<F>, Args...>>
     {
         using ReturnType = std::invoke_result_t<std::decay_t<F>, Args...>;
@@ -531,7 +529,6 @@ namespace taskEngineApi
             }
         }
     }
-
 
     void NullExceptionHandler::OnException(
         std::exception_ptr eptr,
