@@ -32,8 +32,10 @@ namespace taskEngine
          * Llamado cuando una tarea lanza una excepción.
          * Debe ser noexcept y thread-safe.
          */
-        virtual void OnException(std::exception_ptr eptr,
-                                 const std::string& context = "") noexcept = 0;
+        virtual void OnException(
+            std::exception_ptr eptr,
+            const std::string& context = ""
+        ) noexcept = 0;
     };
 
     /**
