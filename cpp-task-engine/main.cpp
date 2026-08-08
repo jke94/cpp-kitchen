@@ -29,6 +29,11 @@ namespace taskEngine
     /**
      * @brief Interface para manejar excepciones lanzadas por las tareas.
      * Se inyecta por constructor → Dependency Injection.
+     *
+     * CONTRATO: OnException NO debe lanzar excepciones.
+     * Si lo hace, el comportamiento está indefinido a nivel de proceso
+     * (puede terminar en std::terminate). El motor intenta aislarlo
+     * defensivamente, pero el contrato sigue siendo noexcept.
      */
     class IExceptionHandler
     {
@@ -82,6 +87,10 @@ namespace taskEngine
     public:
         virtual ~ITaskEngine() = default;
 
+        /**
+         * Envía una tarea. Rechaza std::function vacío (lanza std::invalid_argument).
+         * Si el motor está detenido, lanza std::runtime_error.
+         */
         virtual void Submit(std::function<void()> task) = 0;
 
         template <typename F, typename... Args>
@@ -93,10 +102,24 @@ namespace taskEngine
 
         virtual std::size_t GetThreadCount() const = 0;
         virtual std::size_t GetPendingTaskCount() const = 0;
+
+        /**
+         * Snapshot del estado. NO es seguro usarlo como:
+         *   if (IsRunning()) { Submit(...); }
+         * Existe condición de carrera (TOCTOU) con Stop().
+         * Submit() ya valida internamente y lanza si está detenido.
+         */
         virtual bool IsRunning() const = 0;
 
         // ----- APIs de métricas -----
         virtual TaskMetrics GetMetrics() const = 0;
+
+        /**
+         * Reinicia contadores y reloj.
+         * Si se llama mientras hay tareas en vuelo, las estadísticas
+         * posteriores pueden mezclar datos de antes y después del reset
+         * (best-effort). Para métricas consistentes, llamar solo en idle.
+         */
         virtual void ResetMetrics() = 0;
     };
 
@@ -141,6 +164,10 @@ namespace taskEngine
         // ---- Estado interno ----
         std::shared_ptr<IExceptionHandler>  exceptionHandler;
 
+        // Número de threads inmutable tras la construcción.
+        // Evita data race en GetThreadCount() vs Stop().
+        const std::size_t                   threadCount;
+
         mutable std::mutex                  mutex;
         std::condition_variable             cv;
         std::condition_variable             idleCv;
@@ -162,8 +189,14 @@ namespace taskEngine
     {
         using ReturnType = std::invoke_result_t<std::decay_t<F>, Args...>;
 
+        // Evitamos std::bind (problemas con move-only y copias innecesarias).
+        // Usamos lambda + perfect forwarding + packaged_task.
         auto task = std::make_shared<std::packaged_task<ReturnType()>>(
-            std::bind(std::forward<F>(f), std::forward<Args>(args)...)
+            [fn = std::decay_t<F>(std::forward<F>(f)),
+             tup = std::make_tuple(std::forward<Args>(args)...)]() mutable
+            {
+                return std::apply(std::move(fn), std::move(tup));
+            }
         );
 
         std::future<ReturnType> future = task->get_future();
@@ -325,7 +358,8 @@ namespace taskEngine
         std::size_t numThreads,
         std::shared_ptr<IExceptionHandler> exceptionHandler
     )
-        : stopFlag(false)
+        : threadCount(numThreads)
+        , stopFlag(false)
         , pendingTasks(0)
     {
         if (numThreads == 0)
@@ -360,6 +394,12 @@ namespace taskEngine
 
     void TaskEngine::Submit(std::function<void()> task)
     {
+        // Rechazar tareas vacías → evita std::bad_function_call en el worker
+        if (!task)
+        {
+            throw std::invalid_argument("TaskEngine::Submit: empty task is not allowed");
+        }
+
         {
             std::lock_guard<std::mutex> lock(mutex);
             if (stopFlag)
@@ -407,7 +447,8 @@ namespace taskEngine
 
     std::size_t TaskEngine::GetThreadCount() const
     {
-        return workers.size();
+        // Inmutable → sin data race con Stop()
+        return threadCount;
     }
 
     std::size_t TaskEngine::GetPendingTaskCount() const
@@ -418,7 +459,8 @@ namespace taskEngine
 
     bool TaskEngine::IsRunning() const
     {
-        return !stopFlag;
+        // Snapshot. Ver documentación de la interface.
+        return !stopFlag.load(std::memory_order_acquire);
     }
 
     TaskMetrics TaskEngine::GetMetrics() const
@@ -483,10 +525,23 @@ namespace taskEngine
             catch (...)
             {
                 success = false;
-                exceptionHandler->OnException(
-                    std::current_exception(),
-                    "TaskEngine::Worker"
-                );
+
+                // Defensa en profundidad: aunque OnException es noexcept,
+                // un handler mal implementado podría lanzar y matar el proceso.
+                // Aislamos el worker completamente.
+                try
+                {
+                    exceptionHandler->OnException(
+                        std::current_exception(),
+                        "TaskEngine::Worker"
+                    );
+                }
+                catch (...)
+                {
+                    // Handler violó el contrato noexcept.
+                    // No re-lanzamos: el worker debe seguir vivo.
+                    // En producción se podría loguear a stderr de forma mínima.
+                }
             }
 
             const auto end = std::chrono::steady_clock::now();
