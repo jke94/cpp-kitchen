@@ -211,14 +211,20 @@ namespace taskEngineApi
 namespace taskEngineClient
 {
     /**
-     * @brief Latency simulation minimum constants (in milliseconds).
+     * @brief Latency simulation minimum (milliseconds).
      */
     const int MIN_LATENCY_MS = 80;
 
     /**
-     * @brief Latency simulation maximum constants (in milliseconds).
+     * @brief Latency simulation maximum (milliseconds).
      */
     const int MAX_LATENCY_MS = 120;
+
+    /**
+     * @brief Percentage of requests that will fail (0–100).
+     * Example: 7 → aproximadamente 7 % de fallos.
+     */
+    const int FAILURE_PERCENTAGE = 7;
 
     /**
      * @brief HTTP request simulation (blocking, with variable latency and occasional errors).
@@ -251,8 +257,8 @@ int main(int argc, char* argv[])
     // 1. Configuración e inyección de dependencias
     // ---------------------------------------------------------
     constexpr std::size_t NUM_THREADS = 6;          // Inyectable
-    constexpr int         BATCH_SIZE  = 40;       // Peticiones por ciclo
-    constexpr int         NUM_BATCHES = 4;         // Número de ciclos de polling
+    constexpr int         BATCH_SIZE  = 40;         // Peticiones por ciclo
+    constexpr int         NUM_BATCHES = 4;          // Número de ciclos de polling
 
     auto exceptionHandler = std::make_shared<LoggingExceptionHandler>();
 
@@ -261,7 +267,9 @@ int main(int argc, char* argv[])
     Engine engine(NUM_THREADS, exceptionHandler);
 
     std::cout << "TaskEngine started with " << engine.GetThreadCount()
-              << " worker threads\n\n";
+              << " worker threads\n"
+              << "Failure simulation: " << FAILURE_PERCENTAGE << "%\n"
+              << "Latency range: [" << MIN_LATENCY_MS << "–" << MAX_LATENCY_MS << "] ms\n\n";
 
     // ---------------------------------------------------------
     // 2. Loop de polling (simulación del sistema real)
@@ -275,7 +283,7 @@ int main(int argc, char* argv[])
         for (int i = 0; i < BATCH_SIZE; ++i)
         {
             const int requestId = batch * BATCH_SIZE + i;
-            engine.Submit([requestId] 
+            engine.Submit([requestId]
             {
                 fetchData(requestId);
             });
@@ -292,7 +300,8 @@ int main(int argc, char* argv[])
         std::cout << "--- Métricas después del batch " << (batch + 1) << " ---\n"
                   << "  Submitted      : " << m.submitted      << "\n"
                   << "  Completed      : " << m.completed      << "\n"
-                  << "  Failed         : " << m.failed         << "\n"
+                  << "  Failed         : " << m.failed
+                  << " (aprox. " << (m.failed * 100.0 / m.submitted) << "%)\n"
                   << "  Avg Latency    : " << m.averageLatencyMs << " ms\n"
                   << "  Throughput     : " << m.tasksPerSecond << " tasks/s\n"
                   << "  Pending        : " << engine.GetPendingTaskCount() << "\n\n";
@@ -312,7 +321,8 @@ int main(int argc, char* argv[])
     std::cout << "\n=== Métricas finales ===\n"
               << "Total submitted : " << finalMetrics.submitted << "\n"
               << "Total completed : " << finalMetrics.completed << "\n"
-              << "Total failed    : " << finalMetrics.failed << "\n"
+              << "Total failed    : " << finalMetrics.failed
+              << " (aprox. " << (finalMetrics.failed * 100.0 / finalMetrics.submitted) << "%)\n"
               << "Avg latency     : " << finalMetrics.averageLatencyMs << " ms\n"
               << "Avg throughput  : " << finalMetrics.tasksPerSecond << " tasks/s\n";
 
@@ -541,7 +551,7 @@ namespace taskEngineApi
     }
 
     void NullExceptionHandler::OnException(
-        std::exception_ptr eptr,
+        std::exception_ptr /*eptr*/,
         const std::string& context
     ) noexcept
     {
@@ -553,18 +563,34 @@ namespace taskEngineApi
 namespace taskEngineClient
 {
     /**
-     * @brief HTTP request simulation (blocking, with variable latency and occasional errors).
+     * @brief HTTP request simulation (blocking, with variable latency and configurable failure rate).
+     *
+     * - Latencia: uniforme en [MIN_LATENCY_MS, MAX_LATENCY_MS]
+     * - Fallos: aproximadamente FAILURE_PERCENTAGE % de las peticiones
+     *   (determinista por id para que los tests sean reproducibles)
      */
     void fetchData(int id)
     {
+        // Validación defensiva de la configuración
+        static_assert(MIN_LATENCY_MS >= 0, "MIN_LATENCY_MS must be >= 0");
+        static_assert(MAX_LATENCY_MS >= MIN_LATENCY_MS, "MAX_LATENCY_MS must be >= MIN_LATENCY_MS");
+        static_assert(FAILURE_PERCENTAGE >= 0 && FAILURE_PERCENTAGE <= 100,
+                      "FAILURE_PERCENTAGE must be in [0, 100]");
+
         // Simulamos latencia variable de red
-        const auto latency = std::chrono::milliseconds(MIN_LATENCY_MS + (id % (MAX_LATENCY_MS - MIN_LATENCY_MS + 1)));
+        const int range = MAX_LATENCY_MS - MIN_LATENCY_MS + 1;
+        const auto latency = std::chrono::milliseconds(MIN_LATENCY_MS + (id % range));
         std::this_thread::sleep_for(latency);
 
-        // Simulamos errores ocasionales (aprox. 1 de cada 15)
-        if (id % 15 == 0)
+        // Simulamos errores según el porcentaje configurado.
+        // Usamos módulo 100 para obtener un "percentil" determinista por id.
+        // Ejemplo: FAILURE_PERCENTAGE = 7 → fallan los id cuyo (id % 100) < 7
+        //          (aprox. 7 de cada 100 peticiones).
+        if (FAILURE_PERCENTAGE > 0 && (id % 100) < FAILURE_PERCENTAGE)
         {
-            throw std::runtime_error("HTTP error (simulated) for request id=" + std::to_string(id));
+            throw std::runtime_error(
+                "HTTP error (simulated) for request id=" + std::to_string(id)
+            );
         }
 
         // Aquí iría el procesamiento real de la respuesta...
