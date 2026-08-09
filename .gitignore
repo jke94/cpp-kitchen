@@ -90,3 +90,7 @@ cpp-IoC-and-DI/source-code-without-IoC-and-DI
 
 # cpp-async-log
 cpp-async-log/*.log
+
+# cpp-task-engine
+cpp-task-engine/*.txt
+cpp-task-engine/main

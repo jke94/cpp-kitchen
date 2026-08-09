@@ -652,8 +652,9 @@ namespace taskEngineApiPrivate
             tasks.push(std::move(task));
             ++pendingTasks;
             ++metrics.submitted;
+
+            cv.notify_one();
         }
-        cv.notify_one();
     }
 
     void Engine::WaitForIdle()
@@ -673,9 +674,9 @@ namespace taskEngineApiPrivate
                 return;
             }
             stopFlag.store(true, std::memory_order_release);
-        }
 
-        cv.notify_all();
+            cv.notify_all();
+        }
 
         for (auto& t : workers)
         {
