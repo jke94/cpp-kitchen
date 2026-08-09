@@ -7,6 +7,7 @@
 #include <memory>
 #include <mutex>
 #include <queue>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -255,6 +256,7 @@ namespace taskEngineApiPrivate
  */
 namespace taskEngineClient
 {
+    // HTTP simulation.
     const int MIN_LATENCY_MS     = 80;
     const int MAX_LATENCY_MS     = 120;
     const int FAILURE_PERCENTAGE = 7;
@@ -292,14 +294,19 @@ namespace taskEngineClient
 
 int main(int argc, char* argv[])
 {
-    // Miniumum namespace access for client code.
+    // Minimum namespace access for client code.
     using namespace taskEngineApi;
     using namespace taskEngineClient;
 
-    // Configuration constants
-    constexpr std::size_t NUM_THREADS = 6;
-    constexpr int BATCH_SIZE  = 20;
-    constexpr int NUM_BATCHES = 4;
+    // Producer configuration: number of tasks and submission interval.
+    const std::size_t TOTAL_TASKS = 160;
+
+    // Producer submission interval (ms). The producer introduces tasks over time
+    const int MIN_SUBMIT_DELAY_MS = 50;
+    const int MAX_SUBMIT_DELAY_MS = 150;
+
+    // Engine configuration.
+    constexpr std::size_t NUM_THREADS = 4;
 
     // Create a shared exception handler for logging.
     auto exceptionHandler = std::make_shared<LoggingExceptionHandler>();
@@ -313,123 +320,145 @@ int main(int argc, char* argv[])
     std::cout << "TaskEngine started with " << engine->GetThreadCount()
               << " worker threads\n"
               << "Failure simulation: " << FAILURE_PERCENTAGE << "%\n"
-              << "Latency range: [" << MIN_LATENCY_MS << "–" << MAX_LATENCY_MS << "] ms\n\n";
+              << "Latency range: [" << MIN_LATENCY_MS << "–" << MAX_LATENCY_MS << "] ms\n"
+              << "Total tasks: " << TOTAL_TASKS << "\n"
+              << "Submit interval: [" << MIN_SUBMIT_DELAY_MS << "–"
+              << MAX_SUBMIT_DELAY_MS << "] ms\n\n";
 
-    for (int batch = 0; batch < NUM_BATCHES; ++batch)
+    // Random submission interval. The producer introduces tasks over time
+    // while the TaskEngine workers execute them concurrently.
+    std::mt19937 submitRng(std::random_device{}());
+    std::uniform_int_distribution<int> submitDelay(
+        MIN_SUBMIT_DELAY_MS,
+        MAX_SUBMIT_DELAY_MS
+    );
+
+    std::vector<std::future<HttpResponse>> getFutures;
+    std::vector<std::future<PostResult>> postFutures;
+
+    // There is one GET and one POST per request id.
+    getFutures.reserve(TOTAL_TASKS);
+    postFutures.reserve(TOTAL_TASKS);
+
+    const auto producerStart = std::chrono::steady_clock::now();
+
+    for (std::size_t i = 0; i < TOTAL_TASKS; ++i)
     {
-        std::cout << ">>> Batch " << (batch + 1) << "/" << NUM_BATCHES
-                  << " — submitting " << BATCH_SIZE << " GET + "
-                  << BATCH_SIZE << " POST ...\n";
+        const int requestId = static_cast<int>(i);
 
-        std::vector<std::future<HttpResponse>> getFutures;
-        std::vector<std::future<PostResult>>   postFutures;
-        getFutures.reserve(static_cast<std::size_t>(BATCH_SIZE));
-        postFutures.reserve(static_cast<std::size_t>(BATCH_SIZE));
-
-        for (int i = 0; i < BATCH_SIZE; ++i)
+        // Alternate GET/POST so that the stream contains both request types.
+        if ((i % 2) == 0)
         {
-            const int requestId = batch * BATCH_SIZE + i;
-
             getFutures.push_back(
                 engine->Submit([requestId]() -> HttpResponse {
                     return httpGet(requestId);
                 })
             );
-
+        }
+        else
+        {
             postFutures.push_back(
                 engine->Submit([requestId]() -> PostResult {
                     return httpPost(
-                        requestId, 
-                        "{\"action\":\"create\",\"id\":" + std::to_string(requestId) + "}"
+                        requestId,
+                        "{\"action\":\"create\",\"id\":" +
+                        std::to_string(requestId) + "}"
                     );
                 })
             );
         }
 
-        engine->WaitForIdle();
+        std::cout << "Submitted task " << (i + 1) << "/" << TOTAL_TASKS
+                  << " (pending: " << engine->GetPendingTaskCount() << ")\n";
 
-        int getOk = 0, getErr = 0;
-        for (auto& fut : getFutures)
+        // Wait before introducing the next task. The final task does not
+        // need an additional delay.
+        if (i + 1 < TOTAL_TASKS)
         {
-            try
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds(submitDelay(submitRng))
+            );
+        }
+    }
+
+    const auto producerEnd = std::chrono::steady_clock::now();
+    const double producerElapsedSec =
+        std::chrono::duration<double>(producerEnd - producerStart).count();
+
+    std::cout << "\nAll " << TOTAL_TASKS
+              << " tasks submitted in " << producerElapsedSec << " s.\n"
+              << "Waiting for TaskEngine to become idle...\n\n";
+
+    // Wait until all queued/running tasks have finished.
+    engine->WaitForIdle();
+
+    int getOk = 0;
+    int getErr = 0;
+    for (auto& fut : getFutures)
+    {
+        try
+        {
+            HttpResponse resp = fut.get();
+            if (resp.statusCode >= 200 && resp.statusCode < 300)
             {
-                HttpResponse resp = fut.get();
-                if (resp.statusCode >= 200 && resp.statusCode < 300)
-                {
-                    ++getOk;
-                }
-                else
-                {
-                    ++getErr;
-                }
+                ++getOk;
             }
-            catch (const std::exception&)
+            else
             {
                 ++getErr;
             }
         }
-
-        int postOk = 0, postErr = 0;
-        for (auto& fut : postFutures)
+        catch (const std::exception&)
         {
-            try
+            ++getErr;
+        }
+    }
+
+    int postOk = 0;
+    int postErr = 0;
+    for (auto& fut : postFutures)
+    {
+        try
+        {
+            PostResult resp = fut.get();
+            if (resp.statusCode >= 200 && resp.statusCode < 300)
             {
-                PostResult resp = fut.get();
-                if (resp.statusCode >= 200 && resp.statusCode < 300)
-                {
-                    ++postOk;
-                }
-                else
-                {
-                    ++postErr;
-                }
+                ++postOk;
             }
-            catch (const std::exception&)
+            else
             {
                 ++postErr;
             }
         }
-
-        const TaskMetrics m = engine->GetMetrics();
-        const std::uint64_t finished = m.completed + m.failed;
-
-        std::cout << "--- Metrics after batch " << (batch + 1) << " ---\n"
-                  << "  Submitted      : " << m.submitted << "\n"
-                  << "  Completed (ok) : " << m.completed << "\n"
-                  << "  Failed         : " << m.failed
-                  << " (approx. " << (m.submitted ? m.failed * 100.0 / m.submitted : 0.0) << "%)\n"
-                  << "  Finished total : " << finished
-                  << " (invariant submitted==completed+failed: "
-                  << (m.submitted == finished ? "OK" : "BROKEN") << ")\n"
-                  << "  Avg Latency    : " << m.averageLatencyMs << " ms (all finished tasks)\n"
-                  << "  Throughput     : " << m.tasksPerSecond << " tasks/s\n"
-                  << "  Pending        : " << engine->GetPendingTaskCount() << "\n"
-                  << "  GET  OK/ERR    : " << getOk << " / " << getErr << "\n"
-                  << "  POST OK/ERR    : " << postOk << " / " << postErr << "\n\n";
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        catch (const std::exception&)
+        {
+            ++postErr;
+        }
     }
 
-    std::cout << "Stopping TaskEngine...\n";
-    engine->Stop();
+    const TaskMetrics m = engine->GetMetrics();
+    const std::uint64_t finished = m.completed + m.failed;
 
-    const TaskMetrics finalMetrics = engine->GetMetrics();
-    const std::uint64_t finished = finalMetrics.completed + finalMetrics.failed;
-
-    std::cout << "\n=== Final metrics ===\n"
-              << "Total submitted : " << finalMetrics.submitted << "\n"
-              << "Total completed : " << finalMetrics.completed << "\n"
-              << "Total failed    : " << finalMetrics.failed
+    std::cout << "=== Final metrics ===\n"
+              << "Total submitted : " << m.submitted << "\n"
+              << "Total completed : " << m.completed << "\n"
+              << "Total failed    : " << m.failed
               << " (approx. "
-              << (finalMetrics.submitted
-                      ? finalMetrics.failed * 100.0 / finalMetrics.submitted
+              << (m.submitted
+                      ? m.failed * 100.0 / m.submitted
                       : 0.0)
               << "%)\n"
               << "Finished total  : " << finished
               << " (invariant: "
-              << (finalMetrics.submitted == finished ? "OK" : "BROKEN") << ")\n"
-              << "Avg latency     : " << finalMetrics.averageLatencyMs << " ms\n"
-              << "Avg throughput  : " << finalMetrics.tasksPerSecond << " tasks/s\n";
+              << (m.submitted == finished ? "OK" : "BROKEN") << ")\n"
+              << "Avg latency     : " << m.averageLatencyMs << " ms\n"
+              << "Avg throughput  : " << m.tasksPerSecond << " tasks/s\n"
+              << "Pending         : " << engine->GetPendingTaskCount() << "\n"
+              << "GET  OK/ERR     : " << getOk << " / " << getErr << "\n"
+              << "POST OK/ERR     : " << postOk << " / " << postErr << "\n";
+
+    std::cout << "\nStopping TaskEngine...\n";
+    engine->Stop();
 
     return 0;
 }
@@ -469,16 +498,19 @@ namespace taskEngineClient
 {
     HttpResponse httpGet(int id)
     {
-        static_assert(MIN_LATENCY_MS >= 0, "MIN_LATENCY_MS must be >= 0");
-        static_assert(MAX_LATENCY_MS >= MIN_LATENCY_MS, "MAX_LATENCY_MS must be >= MIN_LATENCY_MS");
-        static_assert(FAILURE_PERCENTAGE >= 0 && FAILURE_PERCENTAGE <= 100,
-                      "FAILURE_PERCENTAGE must be in [0, 100]");
-
         const int range = MAX_LATENCY_MS - MIN_LATENCY_MS + 1;
         const auto latency = std::chrono::milliseconds(MIN_LATENCY_MS + (id % range));
         std::this_thread::sleep_for(latency);
 
-        if (FAILURE_PERCENTAGE > 0 && (id % 100) < FAILURE_PERCENTAGE)
+        // Failure is probabilistic and independent of request id, so failures
+        // are distributed over the whole execution rather than concentrated
+        // in the first batch.
+        thread_local std::mt19937 rng(std::random_device{}());
+        std::bernoulli_distribution fail(
+            static_cast<double>(FAILURE_PERCENTAGE) / 100.0
+        );
+
+        if (fail(rng))
         {
             throw std::runtime_error(
                 "HTTP GET error (simulated) for request id=" + std::to_string(id)
@@ -507,7 +539,12 @@ namespace taskEngineClient
         );
         std::this_thread::sleep_for(latency);
 
-        if (FAILURE_PERCENTAGE > 0 && ((id + 3) % 100) < FAILURE_PERCENTAGE)
+        thread_local std::mt19937 rng(std::random_device{}());
+        std::bernoulli_distribution fail(
+            static_cast<double>(FAILURE_PERCENTAGE) / 100.0
+        );
+
+        if (fail(rng))
         {
             throw std::runtime_error(
                 "HTTP POST error (simulated) for request id=" + std::to_string(id)
