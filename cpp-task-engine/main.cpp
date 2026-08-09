@@ -14,7 +14,8 @@
 #include <vector>
 
 /**
- * @brief The Task Engine API provides a simple interface for submitting tasks to a thread pool and handling exceptions.
+ * @brief The Task Engine API provides a simple interface 
+ * for submitting tasks to a thread pool and handling exceptions.
  */
 namespace taskEngineApi
 {
@@ -248,32 +249,34 @@ namespace taskEngineApiPrivate
 
 } // namespace taskEngineApiPrivate
 
-// ============================================================
-// Client: HTTP GET / POST simulation
-// ============================================================
+/**
+ * @brief The Task Engine Client simulates HTTP GET and POST requests with latency and failure.
+ * It uses the Task Engine API to submit tasks and collect metrics.
+ */
 namespace taskEngineClient
 {
-    struct HttpResponse
-    {
-        int         statusCode  = 0;
-        std::string body;
-        std::string contentType;
-        int         requestId   = 0;
-    };
-
-    struct PostResult
-    {
-        int         statusCode  = 0;
-        std::string location;
-        std::string body;
-        int         requestId   = 0;
-    };
-
     const int MIN_LATENCY_MS     = 80;
     const int MAX_LATENCY_MS     = 120;
     const int FAILURE_PERCENTAGE = 7;
 
+    struct HttpResponse
+    {
+        int statusCode  = 0;
+        std::string body;
+        std::string contentType;
+        int requestId   = 0;
+    };
+
+    struct PostResult
+    {
+        int statusCode  = 0;
+        std::string location;
+        std::string body;
+        int requestId   = 0;
+    };
+
     HttpResponse httpGet(int id);
+    
     PostResult   httpPost(int id, const std::string& payload);
 
     class LoggingExceptionHandler final : public taskEngineApi::IExceptionHandler
@@ -287,20 +290,25 @@ namespace taskEngineClient
 
 } // namespace taskEngineClient
 
-int main(int /*argc*/, char* /*argv*/[])
+int main(int argc, char* argv[])
 {
     // Miniumum namespace access for client code.
     using namespace taskEngineApi;
     using namespace taskEngineClient;
 
+    // Configuration constants
     constexpr std::size_t NUM_THREADS = 6;
-    constexpr int         BATCH_SIZE  = 20;
-    constexpr int         NUM_BATCHES = 4;
+    constexpr int BATCH_SIZE  = 20;
+    constexpr int NUM_BATCHES = 4;
 
+    // Create a shared exception handler for logging.
     auto exceptionHandler = std::make_shared<LoggingExceptionHandler>();
 
-    // Create engine depenending of the abstraction.
-    std::unique_ptr<IEngine> engine = createEngine(NUM_THREADS, exceptionHandler);
+    // Create engine depending on the abstraction.
+    std::unique_ptr<IEngine> engine = createEngine(
+        NUM_THREADS,
+        exceptionHandler
+    );
 
     std::cout << "TaskEngine started with " << engine->GetThreadCount()
               << " worker threads\n"
@@ -330,8 +338,10 @@ int main(int /*argc*/, char* /*argv*/[])
 
             postFutures.push_back(
                 engine->Submit([requestId]() -> PostResult {
-                    return httpPost(requestId, "{\"action\":\"create\",\"id\":"
-                                    + std::to_string(requestId) + "}");
+                    return httpPost(
+                        requestId, 
+                        "{\"action\":\"create\",\"id\":" + std::to_string(requestId) + "}"
+                    );
                 })
             );
         }
@@ -424,29 +434,30 @@ int main(int /*argc*/, char* /*argv*/[])
     return 0;
 }
 
-// ============================================================
-// Engine implementation
-// ============================================================
+/**
+ * @brief The Task Engine API implementation.
+ * This namespace contains the internal implementation details of the Task Engine API.
+ */
 namespace taskEngineApi
 {
-    std::unique_ptr<IEngine> _engine = nullptr;
+    bool engineCreated = false;
 
     std::unique_ptr<IEngine> createEngine(
         std::size_t numThreads,
         std::shared_ptr<IExceptionHandler> exceptionHandler
     )
     {
-        if(_engine)
+        if (engineCreated)
         {
             throw std::runtime_error("TaskEngine already created");
         }
 
-        _engine = std::make_unique<taskEngineApiPrivate::Engine>(
+        engineCreated = true;
+
+        return std::make_unique<taskEngineApiPrivate::Engine>(
             numThreads,
             std::move(exceptionHandler)
         );
-
-        return std::move(_engine);
     }
 
 } // namespace taskEngineApi
@@ -541,7 +552,10 @@ namespace taskEngineClient
 
 } // namespace taskEngineClient
 
-
+/**
+ * @brief The Task Engine API private implementation.
+ * This namespace contains the internal implementation details of the Task Engine API.
+ */
 namespace taskEngineApiPrivate
 {
     using namespace taskEngineApi;
