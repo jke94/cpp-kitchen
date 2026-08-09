@@ -2,6 +2,8 @@
 
 A task engine to run task. Designed a API + clien that consumes the task engine.
 
+The file `main.cpp` implements a Task Engine API based on a thread pool, providing asynchronous task submission through futures, exception handling, graceful shutdown, and execution metrics. A client consumes this API to simulate concurrent HTTP GET and POST requests, handling their responses and failures while collecting performance statistics.
+
 ## How to build
 
 From `cpp-task-engine` folder run:
