@@ -1,8 +1,6 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
-#include <cstddef>
-#include <cstdint>
 #include <functional>
 #include <future>
 #include <iostream>
@@ -16,45 +14,23 @@
 #include <vector>
 
 /**
- * @brief Engine API definition
- *
- * Design notes
- * ------------
- * Submit (template):
- *   Primary client API. Returns std::future<T> for any callable return type T.
- *   Virtual functions cannot be templates, so the polymorphic queue entry
- *   point is SubmitDetached(std::function<void()>).
- *
- * Exception / metrics contract:
- *   - A task that throws is reported BOTH to the future (via promise) AND
- *     to WorkerLoop (rethrow after set_exception), so:
- *       * IExceptionHandler::OnException is invoked
- *       * TaskMetrics::failed is incremented
- *       * future.get() still rethrows for the client
- *   - Metrics invariant:
- *       submitted == completed + failed
- *     where "completed" means successful only
- *   - Latency includes both successful and failed executions
- *     (averageLatencyMs = totalLatencyMs / (completed + failed)).
- *
- * Engine encapsulation:
- *   Clients should depend on IEngine. Engine only exposes constructor/destructor
- *   publicly; all overrides are private (callable only through IEngine*).
- *
- * WaitForIdle:
- *   Blocks until outstanding tasks (queued + executing) == 0.
- *
- * GetPendingTaskCount:
- *   Returns outstanding tasks (queued + executing).
- *
- * Stop:
- *   Graceful: no new tasks; workers drain the queue then exit; join all workers.
+ * @brief The Task Engine API provides a simple interface for submitting tasks to a thread pool and handling exceptions.
  */
 namespace taskEngineApi
 {
+    /**
+     * @brief Exception handler interface.
+     *
+     * Clients can implement this interface to handle exceptions thrown by tasks.
+     * The engine will call OnException when a task throws an exception.
+     */
     class IExceptionHandler
     {
     public:
+
+        /**
+         * @brief Virtual destructor for polymorphic base class.
+         */
         virtual ~IExceptionHandler() = default;
 
         /**
@@ -71,15 +47,6 @@ namespace taskEngineApi
         IExceptionHandler() = default;
         IExceptionHandler(const IExceptionHandler&) = default;
         IExceptionHandler& operator=(const IExceptionHandler&) = default;
-    };
-
-    class NullExceptionHandler final : public IExceptionHandler
-    {
-    public:
-        void OnException(
-            std::exception_ptr eptr,
-            const std::string& context
-        ) noexcept override;
     };
 
     /**
@@ -106,6 +73,10 @@ namespace taskEngineApi
     class IEngine
     {
     public:
+
+        /**
+         * @brief Virtual destructor for polymorphic base class.
+         */
         virtual ~IEngine() = default;
 
         /**
@@ -163,58 +134,6 @@ namespace taskEngineApi
         IEngine& operator=(const IEngine&) = default;
     };
 
-    /**
-     * @brief Concrete engine. Depend on IEngine from client code.
-     *
-     * Public surface is limited to construction/destruction.
-     * All IEngine overrides are private: still reachable via IEngine*,
-     * but not callable on an Engine* / Engine& directly.
-     */
-    class Engine final : public IEngine
-    {
-    public:
-        explicit Engine(
-            std::size_t numThreads,
-            std::shared_ptr<IExceptionHandler> exceptionHandler
-        );
-
-        ~Engine() override;
-
-        Engine(const Engine&) = delete;
-        Engine& operator=(const Engine&) = delete;
-        Engine(Engine&&) = delete;
-        Engine& operator=(Engine&&) = delete;
-
-    private:
-        // --- IEngine overrides (private: use through IEngine*) ---
-        void SubmitDetached(std::function<void()> task) override;
-        void WaitForIdle() override;
-        void Stop() override;
-        std::size_t GetThreadCount() const override;
-        std::size_t GetPendingTaskCount() const override;
-        bool IsRunning() const override;
-        TaskMetrics GetMetrics() const override;
-        void ResetMetrics() override;
-
-        void WorkerLoop();
-
-        std::shared_ptr<IExceptionHandler>  exceptionHandler;
-        const std::size_t                   threadCount;
-
-        // Shared mutable state protected by mutex, except stopFlag
-        // (atomic for lock-free IsRunning; written under mutex in Stop).
-        mutable std::mutex                  mutex;
-        std::condition_variable             cv;
-        std::condition_variable             idleCv;
-        std::queue<std::function<void()>>   tasks;
-
-        std::vector<std::thread>            workers;
-        std::atomic<bool>                   stopFlag{false};
-        std::size_t                         pendingTasks{0};
-
-        TaskMetrics                         metrics;
-    };
-
     // -----------------------------------------------------------------
     // Template Submit — exceptions propagate to BOTH future and worker
     // -----------------------------------------------------------------
@@ -257,7 +176,77 @@ namespace taskEngineApi
         return future;
     }
 
+    std::unique_ptr<IEngine> createEngine(
+        std::size_t numThreads,
+        std::shared_ptr<IExceptionHandler> exceptionHandler
+    );
+
 } // namespace taskEngineApi
+
+namespace taskEngineApiPrivate
+{
+    class NullExceptionHandler final : public taskEngineApi::IExceptionHandler
+    {
+    public:
+        void OnException(
+            std::exception_ptr eptr,
+            const std::string& context
+        ) noexcept override;
+    };
+
+    /**
+     * @brief Concrete engine. Depend on IEngine from client code.
+     *
+     * Public surface is limited to construction/destruction.
+     * All IEngine overrides are private: still reachable via IEngine*,
+     * but not callable on an Engine* / Engine& directly.
+     */
+    class Engine final : public taskEngineApi::IEngine
+    {
+    public:
+        explicit Engine(
+            std::size_t numThreads,
+            std::shared_ptr<taskEngineApi::IExceptionHandler> exceptionHandler
+        );
+
+        ~Engine() override;
+
+        Engine(const Engine&) = delete;
+        Engine& operator=(const Engine&) = delete;
+        Engine(Engine&&) = delete;
+        Engine& operator=(Engine&&) = delete;
+
+    private:
+        // --- IEngine overrides (private: use through IEngine*) ---
+        void SubmitDetached(std::function<void()> task) override;
+        void WaitForIdle() override;
+        void Stop() override;
+        std::size_t GetThreadCount() const override;
+        std::size_t GetPendingTaskCount() const override;
+        bool IsRunning() const override;
+        taskEngineApi::TaskMetrics GetMetrics() const override;
+        void ResetMetrics() override;
+
+        void WorkerLoop();
+
+        std::shared_ptr<taskEngineApi::IExceptionHandler>  exceptionHandler;
+        const std::size_t threadCount;
+
+        // Shared mutable state protected by mutex, except stopFlag
+        // (atomic for lock-free IsRunning; written under mutex in Stop).
+        mutable std::mutex                  mutex;
+        std::condition_variable             cv;
+        std::condition_variable             idleCv;
+        std::queue<std::function<void()>>   tasks;
+
+        std::vector<std::thread>            workers;
+        std::atomic<bool>                   stopFlag{false};
+        std::size_t                         pendingTasks{0};
+
+        taskEngineApi::TaskMetrics metrics;
+    };
+
+} // namespace taskEngineApiPrivate
 
 // ============================================================
 // Client: HTTP GET / POST simulation
@@ -298,20 +287,20 @@ namespace taskEngineClient
 
 } // namespace taskEngineClient
 
-using namespace taskEngineApi;
-using namespace taskEngineClient;
-
 int main(int /*argc*/, char* /*argv*/[])
 {
+    // Miniumum namespace access for client code.
+    using namespace taskEngineApi;
+    using namespace taskEngineClient;
+
     constexpr std::size_t NUM_THREADS = 6;
     constexpr int         BATCH_SIZE  = 20;
     constexpr int         NUM_BATCHES = 4;
 
     auto exceptionHandler = std::make_shared<LoggingExceptionHandler>();
 
-    // Depend on the abstraction, not the concrete Engine surface.
-    std::unique_ptr<IEngine> engine =
-        std::make_unique<Engine>(NUM_THREADS, exceptionHandler);
+    // Create engine depenending of the abstraction.
+    std::unique_ptr<IEngine> engine = createEngine(NUM_THREADS, exceptionHandler);
 
     std::cout << "TaskEngine started with " << engine->GetThreadCount()
               << " worker threads\n"
@@ -440,6 +429,123 @@ int main(int /*argc*/, char* /*argv*/[])
 // ============================================================
 namespace taskEngineApi
 {
+    std::unique_ptr<IEngine> _engine = nullptr;
+
+    std::unique_ptr<IEngine> createEngine(
+        std::size_t numThreads,
+        std::shared_ptr<IExceptionHandler> exceptionHandler
+    )
+    {
+        if(_engine)
+        {
+            throw std::runtime_error("TaskEngine already created");
+        }
+
+        _engine = std::make_unique<taskEngineApiPrivate::Engine>(
+            numThreads,
+            std::move(exceptionHandler)
+        );
+
+        return std::move(_engine);
+    }
+
+} // namespace taskEngineApi
+
+// ============================================================
+// Client implementation
+// ============================================================
+namespace taskEngineClient
+{
+    HttpResponse httpGet(int id)
+    {
+        static_assert(MIN_LATENCY_MS >= 0, "MIN_LATENCY_MS must be >= 0");
+        static_assert(MAX_LATENCY_MS >= MIN_LATENCY_MS, "MAX_LATENCY_MS must be >= MIN_LATENCY_MS");
+        static_assert(FAILURE_PERCENTAGE >= 0 && FAILURE_PERCENTAGE <= 100,
+                      "FAILURE_PERCENTAGE must be in [0, 100]");
+
+        const int range = MAX_LATENCY_MS - MIN_LATENCY_MS + 1;
+        const auto latency = std::chrono::milliseconds(MIN_LATENCY_MS + (id % range));
+        std::this_thread::sleep_for(latency);
+
+        if (FAILURE_PERCENTAGE > 0 && (id % 100) < FAILURE_PERCENTAGE)
+        {
+            throw std::runtime_error(
+                "HTTP GET error (simulated) for request id=" + std::to_string(id)
+            );
+        }
+
+        HttpResponse resp;
+        resp.statusCode  = 200;
+        resp.contentType = "application/json";
+        resp.requestId   = id;
+        resp.body        = std::string("{\"id\":")
+                         + std::to_string(id)
+                         + ",\"method\":\"GET\""
+                         + ",\"status\":\"ok\""
+                         + ",\"payload\":\"sample-data-"
+                         + std::to_string(id)
+                         + "\"}";
+        return resp;
+    }
+
+    PostResult httpPost(int id, const std::string& payload)
+    {
+        const int range = MAX_LATENCY_MS - MIN_LATENCY_MS + 1;
+        const auto latency = std::chrono::milliseconds(
+            MIN_LATENCY_MS + ((id * 3) % range)
+        );
+        std::this_thread::sleep_for(latency);
+
+        if (FAILURE_PERCENTAGE > 0 && ((id + 3) % 100) < FAILURE_PERCENTAGE)
+        {
+            throw std::runtime_error(
+                "HTTP POST error (simulated) for request id=" + std::to_string(id)
+            );
+        }
+
+        PostResult resp;
+        resp.statusCode = 201;
+        resp.requestId  = id;
+        resp.location   = "/resources/" + std::to_string(id);
+        resp.body       = std::string("{\"id\":")
+                        + std::to_string(id)
+                        + ",\"method\":\"POST\""
+                        + ",\"status\":\"created\""
+                        + ",\"echo\":"
+                        + payload
+                        + "}";
+        return resp;
+    }
+
+    void LoggingExceptionHandler::OnException(
+        std::exception_ptr eptr,
+        const std::string& context
+    ) noexcept
+    {
+        try
+        {
+            if (eptr)
+            {
+                std::rethrow_exception(eptr);
+            }
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "[EXCEPTION][" << context << "] " << e.what() << std::endl;
+        }
+        catch (...)
+        {
+            std::cerr << "[EXCEPTION][" << context << "] Unknown exception" << std::endl;
+        }
+    }
+
+} // namespace taskEngineClient
+
+
+namespace taskEngineApiPrivate
+{
+    using namespace taskEngineApi;
+
     Engine::Engine(
         std::size_t numThreads,
         std::shared_ptr<IExceptionHandler> exceptionHandler
@@ -657,94 +763,4 @@ namespace taskEngineApi
         std::cerr << "[NullExceptionHandler] Exception in context: " << context << std::endl;
     }
 
-} // namespace taskEngineApi
-
-// ============================================================
-// Client implementation
-// ============================================================
-namespace taskEngineClient
-{
-    HttpResponse httpGet(int id)
-    {
-        static_assert(MIN_LATENCY_MS >= 0, "MIN_LATENCY_MS must be >= 0");
-        static_assert(MAX_LATENCY_MS >= MIN_LATENCY_MS, "MAX_LATENCY_MS must be >= MIN_LATENCY_MS");
-        static_assert(FAILURE_PERCENTAGE >= 0 && FAILURE_PERCENTAGE <= 100,
-                      "FAILURE_PERCENTAGE must be in [0, 100]");
-
-        const int range = MAX_LATENCY_MS - MIN_LATENCY_MS + 1;
-        const auto latency = std::chrono::milliseconds(MIN_LATENCY_MS + (id % range));
-        std::this_thread::sleep_for(latency);
-
-        if (FAILURE_PERCENTAGE > 0 && (id % 100) < FAILURE_PERCENTAGE)
-        {
-            throw std::runtime_error(
-                "HTTP GET error (simulated) for request id=" + std::to_string(id)
-            );
-        }
-
-        HttpResponse resp;
-        resp.statusCode  = 200;
-        resp.contentType = "application/json";
-        resp.requestId   = id;
-        resp.body        = std::string("{\"id\":")
-                         + std::to_string(id)
-                         + ",\"method\":\"GET\""
-                         + ",\"status\":\"ok\""
-                         + ",\"payload\":\"sample-data-"
-                         + std::to_string(id)
-                         + "\"}";
-        return resp;
-    }
-
-    PostResult httpPost(int id, const std::string& payload)
-    {
-        const int range = MAX_LATENCY_MS - MIN_LATENCY_MS + 1;
-        const auto latency = std::chrono::milliseconds(
-            MIN_LATENCY_MS + ((id * 3) % range)
-        );
-        std::this_thread::sleep_for(latency);
-
-        if (FAILURE_PERCENTAGE > 0 && ((id + 3) % 100) < FAILURE_PERCENTAGE)
-        {
-            throw std::runtime_error(
-                "HTTP POST error (simulated) for request id=" + std::to_string(id)
-            );
-        }
-
-        PostResult resp;
-        resp.statusCode = 201;
-        resp.requestId  = id;
-        resp.location   = "/resources/" + std::to_string(id);
-        resp.body       = std::string("{\"id\":")
-                        + std::to_string(id)
-                        + ",\"method\":\"POST\""
-                        + ",\"status\":\"created\""
-                        + ",\"echo\":"
-                        + payload
-                        + "}";
-        return resp;
-    }
-
-    void LoggingExceptionHandler::OnException(
-        std::exception_ptr eptr,
-        const std::string& context
-    ) noexcept
-    {
-        try
-        {
-            if (eptr)
-            {
-                std::rethrow_exception(eptr);
-            }
-        }
-        catch (const std::exception& e)
-        {
-            std::cerr << "[EXCEPTION][" << context << "] " << e.what() << std::endl;
-        }
-        catch (...)
-        {
-            std::cerr << "[EXCEPTION][" << context << "] Unknown exception" << std::endl;
-        }
-    }
-
-} // namespace taskEngineClient
+} // namespace taskEngineApiPrivate
