@@ -94,3 +94,10 @@ cpp-async-log/*.log
 # cpp-task-engine
 cpp-task-engine/*.txt
 cpp-task-engine/main
+
+# cpp-file-formart-detector
+cpp-file-formart-detector/*.pdf
+cpp-file-formart-detector/*.PNG
+cpp-file-formart-detector/*.png
+cpp-file-formart-detector/*.JPEG
+cpp-file-formart-detector/*.TIFF
